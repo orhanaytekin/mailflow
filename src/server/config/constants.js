@@ -8,6 +8,7 @@ export const CONFIG = {
   LABELS: {
     PROCESSED: 'Processed',
     CUSTOMER_SUPPORT: 'Customer-Support',
+    DISCOVERY: 'Auto-Discovery',
   },
 
   WORKFLOWS: {

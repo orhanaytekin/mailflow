@@ -12,9 +12,11 @@ import {
 } from './server/ui/settings';
 import { handleDeleteIntegration, showDeleteConfirmation } from './server/ui/settings-handlers';
 import { processCustomerSupportWorkflow, createWorkflowTask } from './server/workflows/customer-support';
+import { toggleDiscovery, enableDiscovery } from './server/ui/handlers';
 import { setProperty } from './server/config/settings';
 import { CONFIG } from './server/config/constants';
 import { logInfo } from './server/utils/logger';
+import { processNewEmails } from './server/mail';
 
 // Declare functions in global scope
 function onHomepage() {
@@ -64,6 +66,7 @@ export {
   createTask,
   handleDeleteIntegration,
   showDeleteConfirmation,
+  toggleDiscovery,
 };
 
 // Make functions available globally
@@ -75,6 +78,8 @@ global.showSettingsCard = showSettingsCard;
 global.showIntegrationSettings = showIntegrationSettings;
 global.createTask = createTask;
 global.handleDeleteIntegration = handleDeleteIntegration;
+global.showDeleteConfirmation = showDeleteConfirmation;
+global.toggleDiscovery = toggleDiscovery;
 
 // Add settings handlers with correct names
 global.onSaveOPENAISettings = (e) => {
@@ -103,3 +108,9 @@ global.showDeleteConfirmation = showDeleteConfirmation;
 global.testNotionSetup = testNotionSetup;
 
 global.testJiraSetup = testJiraSetup;
+
+// Add to global scope
+global.processNewEmails = processNewEmails;
+
+// Add to global exports
+global.enableDiscovery = enableDiscovery;

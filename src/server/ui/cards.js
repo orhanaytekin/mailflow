@@ -6,6 +6,7 @@ import { getCurrentMessage, getMessageMetadata } from '../utils/gmail';
 import { analyzeEmail } from '../integrations/openai';
 import { validateIntegrationConfig, getConfiguredPlatforms } from '../config/settings';
 import { logError } from '../utils/logger';
+import { isDiscoveryEnabled } from '../triggers';
 
 export const createErrorCard = (message) => {
   const card = CardService.newCardBuilder();
@@ -58,7 +59,25 @@ export const createHomeCard = () => {
     ]),
   ]);
 
-  return card.addSection(workflowSection).build();
+  const discoveryEnabled = isDiscoveryEnabled();
+  const discoverySection = createSection('Auto-Discovery', [
+    CardService.newTextParagraph().setText(
+      discoveryEnabled
+        ? '✅ Auto-discovery is enabled. New emails will be analyzed automatically.'
+        : '❌ Auto-discovery is disabled. Enable it to analyze new emails automatically.',
+    ),
+    createActionButton(
+      discoveryEnabled ? 'Disable Auto-Discovery' : 'Enable Auto-Discovery',
+      'toggleDiscovery',
+      {},
+      discoveryEnabled ? 'text' : 'filled',
+    ),
+  ]);
+
+  return card
+    .addSection(workflowSection)
+    .addSection(discoverySection)
+    .build();
 };
 
 export const createAnalysisCard = async () => {
