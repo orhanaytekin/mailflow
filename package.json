@@ -9,9 +9,10 @@
     "watch": "webpack --watch",
     "build": "webpack",
     "format": "prettier --write dist/code.js",
+    "eslint:fix": "eslint --fix \"src/**/*.{js,jsx,ts,tsx}\"",
     "postbuild": "npm run format",
-    "upload": "npx clasp push",
-    "deploy": "npm run build && npm run upload",
+    "predeploy": "rm -rf dist/* && npm run build",
+    "deploy": "cp dist/* . && npx clasp push -f",
     "test": "jest"
   },
   "repository": {

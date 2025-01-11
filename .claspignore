@@ -1,4 +1,12 @@
-**/**
+**/*
+!dist/**
 !appsscript.json
-!*.js
-!*.html
+node_modules/
+babel.config.js
+webpack.config.js
+.git/
+.github/
+.gitignore
+package.json
+package-lock.json
+README.md
