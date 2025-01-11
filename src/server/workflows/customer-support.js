@@ -2,161 +2,152 @@ import { getCurrentMessage, getMessageMetadata } from '../utils/gmail';
 import { analyzeEmail } from '../integrations/openai';
 import { createNotionTask } from '../integrations/notion';
 import { createJiraIssue } from '../integrations/jira';
-import { sendSlackNotification } from '../integrations/slack';
 import { CONFIG } from '../config/constants';
 import { logError, logInfo } from '../utils/logger';
-import { createErrorCard } from '../ui/cards';
+import { createErrorCard, createWorkflowResultCard } from '../ui/cards';
+import { sendSlackNotification } from '../integrations/slack';
 import {
   validateWorkflowConfig,
   getConfiguredPlatforms,
-  validateIntegrationConfig,
 } from '../config/settings';
 import { createIntegrationSettingsCard } from '../ui/settings';
 
-const createWorkflowResultCard = (analysis, metadata) => {
-  const card = CardService.newCardBuilder();
-  card.setHeader(CardService.newCardHeader()
-    .setTitle('Email Analysis')
-    .setSubtitle(metadata.subject));
-
-  // Analysis Summary Section
-  const summarySection = CardService.newCardSection()
-    .addWidget(CardService.newTextParagraph().setText(analysis.analysis.summary))
-    .addWidget(CardService.newKeyValue()
-      .setTopLabel('Priority')
-      .setContent(analysis.emailMetadata.priority))
-    .addWidget(CardService.newKeyValue()
-      .setTopLabel('Category')
-      .setContent(analysis.emailMetadata.category));
-
-  // Technical Details Section (if available)
-  if (analysis.technicalDetails) {
-    const techSection = CardService.newCardSection()
-      .addWidget(CardService.newTextParagraph().setText('🔧 Technical Details'));
-
-    if (analysis.technicalDetails.appVersion) {
-      techSection.addWidget(CardService.newKeyValue()
-        .setTopLabel('App Version')
-        .setContent(analysis.technicalDetails.appVersion));
+export const createWorkflowTask = async (platform, params) => {
+  try {
+    let result;
+    switch (platform.toLowerCase()) {
+      case 'jira':
+        try {
+          result = await createJiraIssue(params);
+        } catch (error) {
+          logError('Jira Task Creation Error', error);
+          // Check if it's a configuration error
+          if (error.message.includes('configuration')) {
+            throw new Error('Jira is not properly configured. Please check your settings.');
+          }
+          throw error;
+        }
+        break;
+      case 'notion':
+        result = await createNotionTask(params);
+        break;
+      case 'slack':
+        // Slack is handled separately via sendSlackNotification
+        return { success: true }; // Don't throw error for Slack
+      default:
+        throw new Error(`Unsupported platform: ${platform}`);
     }
 
-    if (analysis.technicalDetails.deviceInfo) {
-      const { deviceInfo } = analysis.technicalDetails;
-      if (deviceInfo.type) {
-        techSection.addWidget(CardService.newKeyValue()
-          .setTopLabel('Device Type')
-          .setContent(deviceInfo.type));
-      }
-      if (deviceInfo.model) {
-        techSection.addWidget(CardService.newKeyValue()
-          .setTopLabel('Device Model')
-          .setContent(deviceInfo.model));
-      }
-      if (deviceInfo.osVersion) {
-        techSection.addWidget(CardService.newKeyValue()
-          .setTopLabel('OS Version')
-          .setContent(deviceInfo.osVersion));
-      }
+    if (!result?.url) {
+      throw new Error(`Failed to create task in ${platform}`);
     }
 
-    if (analysis.technicalDetails.userIdentifiers) {
-      const { userIdentifiers } = analysis.technicalDetails;
-      if (userIdentifiers.aid) {
-        techSection.addWidget(CardService.newKeyValue()
-          .setTopLabel('AID')
-          .setContent(userIdentifiers.aid));
-      }
-      if (userIdentifiers.userId) {
-        techSection.addWidget(CardService.newKeyValue()
-          .setTopLabel('User ID')
-          .setContent(userIdentifiers.userId));
-      }
-    }
-
-    card.addSection(techSection);
+    logInfo('Task Creation', `Created ${platform.toLowerCase()} task for email`);
+    return {
+      success: true,
+      url: result.url,
+      taskId: result.id,
+    };
+  } catch (error) {
+    logError('Create Task Error', error);
+    return {
+      success: false,
+      error: error.message,
+    };
   }
+};
 
-  // Actions Section - Only show available integrations
-  const configuredPlatforms = getConfiguredPlatforms('CUSTOMER_SUPPORT');
-  const actionsSection = CardService.newCardSection()
-    .setHeader('Available Actions');
+export const processEmail = async (message, thread) => {
+  try {
+    const metadata = getMessageMetadata(message);
+    const analysis = await analyzeEmail(metadata.subject, metadata.body);
 
-  if (configuredPlatforms.length === 0) {
-    actionsSection
-      .addWidget(CardService.newTextParagraph()
-        .setText('⚠️ No task platforms configured. Please configure at least one platform in settings.'))
-      .addWidget(
-        CardService.newTextButton()
-          .setText('Go to Settings')
-          .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-          .setOnClickAction(
-            CardService.newAction().setFunctionName('showIntegrationSettings'),
-          ),
-      );
-  } else {
-    // Add button for each configured platform with descriptive text
-    configuredPlatforms.forEach((platform) => {
-      const taskMetadata = {
-        emailId: metadata.id || '',
-        threadId: metadata.threadId || '',
-        sentiment: analysis.analysis.sentiment || 'neutral',
-        responseNeeded: analysis.emailMetadata.responseNeeded || false,
+    if (!analysis.relevant) {
+      return {
+        success: false,
+        reason: analysis.reason || 'Email not relevant',
       };
+    }
 
-      let buttonText;
-      switch (platform.toLowerCase()) {
-        case 'slack':
-          buttonText = 'Send to Slack';
-          break;
-        case 'notion':
-          buttonText = 'Create in Notion';
-          break;
-        case 'jira':
-          buttonText = 'Create Jira Issue';
-          break;
-        default:
-          buttonText = `Send to ${platform}`;
+    // Get platforms from AI analysis or fall back to configured ones
+    let platformsToUse = [];
+
+    // If AI suggests platforms, use those
+    if (analysis.emailMetadata.platforms && analysis.emailMetadata.platforms.length > 0) {
+      platformsToUse = analysis.emailMetadata.platforms.map((p) => p.toLowerCase());
+    } else {
+      // Fallback to configured platforms
+      platformsToUse = getConfiguredPlatforms('CUSTOMER_SUPPORT');
+    }
+
+    const taskUrls = {};
+    const errors = [];
+
+    // Create tasks in all determined platforms (except Slack)
+    await Promise.all(platformsToUse.map(async (platform) => {
+      // Skip Slack as it's for notifications only
+      if (platform.toLowerCase() === 'slack') return;
+
+      try {
+        const result = await createWorkflowTask(platform, {
+          title: analysis.analysis.summary,
+          description: analysis.analysis.details,
+          priority: analysis.emailMetadata.priority,
+          category: analysis.emailMetadata.category,
+          metadata: JSON.stringify({
+            emailId: message.getId(),
+            threadId: thread.getId(),
+            sentiment: analysis.analysis.sentiment,
+            responseNeeded: analysis.emailMetadata.responseNeeded,
+          }),
+          technicalDetails: JSON.stringify(analysis.technicalDetails),
+        });
+
+        if (result?.success && result?.url) {
+          taskUrls[platform] = result.url;
+          logInfo('Task Creation', `Created ${platform.toLowerCase()} task for email`);
+        } else if (result?.error) {
+          errors.push(`${platform}: ${result.error}`);
+        }
+      } catch (error) {
+        errors.push(`${platform}: ${error.message}`);
+        logError(`${platform} Task Creation Error`, error);
       }
+    }));
 
-      actionsSection.addWidget(
-        CardService.newTextButton()
-          .setText(buttonText)
-          .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-          .setOnClickAction(
-            CardService.newAction()
-              .setFunctionName('createTask')
-              .setParameters({
-                platform,
-                title: analysis.analysis.summary || 'Untitled Task',
-                description: analysis.analysis.details || 'No description provided',
-                priority: analysis.emailMetadata.priority || 'Medium',
-                category: analysis.emailMetadata.category || 'Support',
-                metadata: JSON.stringify(taskMetadata),
-                technicalDetails: JSON.stringify(analysis.technicalDetails || null),
-              }),
-          ),
-      );
-    });
+    // Send single Slack notification only if we have created any tasks
+    if (Object.keys(taskUrls).length > 0) {
+      try {
+        await sendSlackNotification({
+          title: analysis.analysis.summary,
+          description: analysis.analysis.details,
+          priority: analysis.emailMetadata.priority,
+          category: analysis.emailMetadata.category,
+          taskUrls,
+        });
+        logInfo('Slack Notification', 'Sent notification with task URLs');
+      } catch (error) {
+        errors.push(`Slack: ${error.message}`);
+        logError('Slack Notification Error', error);
+      }
+    }
+
+    // Return success if we created at least one task, even if there were some errors
+    return {
+      success: Object.keys(taskUrls).length > 0,
+      analysis,
+      taskUrls,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+  } catch (error) {
+    logError('Process Email Error', error);
+    throw error;
   }
-
-  // Add back button
-  actionsSection.addWidget(
-    CardService.newTextButton()
-      .setText('Back')
-      .setOnClickAction(CardService.newAction().setFunctionName('onHomepage')),
-  );
-
-  return card
-    .addSection(summarySection)
-    .addSection(actionsSection)
-    .build();
 };
 
 export const processCustomerSupportWorkflow = async () => {
   try {
-    // Check if workflow is properly configured
     if (!validateWorkflowConfig('CUSTOMER_SUPPORT')) {
-      logError('Customer Support Workflow', 'Required integrations not configured');
       return CardService.newActionResponseBuilder()
         .setNavigation(CardService.newNavigation().updateCard(createIntegrationSettingsCard()))
         .setNotification(CardService.newNotification()
@@ -170,116 +161,16 @@ export const processCustomerSupportWorkflow = async () => {
       return createErrorCard(CONFIG.ERROR_MESSAGES.NO_EMAIL_SELECTED);
     }
 
-    const metadata = getMessageMetadata(message);
+    const thread = message.getThread();
+    const result = await processEmail(message, thread);
 
-    logInfo('Customer Support Workflow', 'Starting email analysis');
-    try {
-      const analysis = await analyzeEmail(metadata.subject, metadata.body);
-      logInfo('Customer Support Workflow', JSON.stringify(analysis));
-      if (!analysis || !analysis.analysis) {
-        logError('Customer Support Workflow', 'Invalid analysis response');
-        return createErrorCard(CONFIG.ERROR_MESSAGES.ANALYSIS_FAILED);
-      }
-
-      // Show analysis results and platform selection
-      return createWorkflowResultCard(analysis, metadata);
-    } catch (error) {
-      if (error.message.startsWith('Email skipped:')) {
-        return CardService.newActionResponseBuilder()
-          .setNotification(CardService.newNotification()
-            .setText(error.message)
-            .setType(CardService.NotificationType.INFO))
-          .build();
-      }
-      throw error;
+    if (!result.success) {
+      return createErrorCard(result.reason);
     }
+
+    return createWorkflowResultCard(result.analysis, getMessageMetadata(message));
   } catch (error) {
-    logError('Customer Support Workflow', error);
+    logError('Customer Support Workflow Error', error);
     return createErrorCard(error.message);
-  }
-};
-
-export const createWorkflowTask = async (platform, params) => {
-  try {
-    logInfo('Task Creation', `Creating task in ${platform}`);
-
-    // Verify platform is configured
-    if (!validateIntegrationConfig(platform)) {
-      throw new Error(`${platform} is not properly configured. Please check settings.`);
-    }
-
-    // Parse metadata and technical details
-    let metadata;
-    let technicalDetails;
-    try {
-      metadata = params.metadata ? JSON.parse(params.metadata) : {};
-      technicalDetails = params.technicalDetails ? JSON.parse(params.technicalDetails) : null;
-    } catch (error) {
-      logError('Parse Error', error);
-      metadata = {};
-      technicalDetails = null;
-    }
-
-    const taskParams = {
-      title: params.title || 'Untitled Task',
-      description: params.description || 'No description provided',
-      priority: params.priority || 'Medium',
-      category: params.category || 'Support',
-      metadata,
-      technicalDetails,
-    };
-
-    let result;
-    switch (platform.toLowerCase()) {
-      case 'notion':
-        result = await createNotionTask(taskParams);
-        break;
-      case 'jira':
-        result = await createJiraIssue(taskParams);
-        break;
-      case 'slack':
-        result = await sendSlackNotification({
-          ...taskParams,
-          taskUrl: null,
-        });
-        break;
-      default:
-        throw new Error(`Invalid platform: ${platform}`);
-    }
-
-    if (!result || (platform !== 'slack' && !result.id)) {
-      throw new Error(`Failed to create task in ${platform}`);
-    }
-
-    // Only send Slack notification if primary task creation succeeded
-    if (platform !== 'slack' && validateIntegrationConfig('slack')) {
-      try {
-        await sendSlackNotification({
-          ...taskParams,
-          taskUrl: result.url,
-          source: platform,
-        });
-        logInfo('Slack Notification', `Additional notification sent to Slack for ${platform} task`);
-      } catch (error) {
-        logError('Slack Notification Error', error);
-        // Don't fail the main task creation
-      }
-    }
-
-    logInfo('Task Creation', `Task created in ${platform}: ${result.id}`);
-
-    // Instead of popping to root, just show notification
-    return CardService.newActionResponseBuilder()
-      .setNotification(CardService.newNotification()
-        .setText(`Successfully sent to ${CONFIG.INTEGRATIONS[platform.toUpperCase()].name}`)
-        .setType(CardService.NotificationType.SUCCESS))
-      .build();
-  } catch (error) {
-    logError('Create Task Error', error);
-    return CardService.newActionResponseBuilder()
-      .setNotification(CardService.newNotification()
-        .setText(error.message)
-        .setType(CardService.NotificationType.ERROR))
-      .build();
   }
 };

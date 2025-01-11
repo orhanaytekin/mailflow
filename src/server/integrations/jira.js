@@ -2,244 +2,165 @@ import { getProperty } from '../config/settings';
 import { CONFIG } from '../config/constants';
 import { logError, logInfo } from '../utils/logger';
 
-// Helper function to map our priority levels to Jira priority names
-const mapPriority = (priority) => {
-  switch (priority.toLowerCase()) {
-    case 'high':
-      return 'High';
-    case 'medium':
-      return 'Medium';
-    case 'low':
-      return 'Low';
-    default:
-      return 'Medium';
-  }
-};
-
 export const createJiraIssue = async (params) => {
-  // Declare variables at the top of the function scope
-  let token;
-  let email;
-  let domain;
-  let projectKey;
-
   try {
-    token = getProperty(CONFIG.PROPERTIES.JIRA_API_TOKEN);
-    email = getProperty(CONFIG.PROPERTIES.JIRA_EMAIL);
-    domain = getProperty(CONFIG.PROPERTIES.JIRA_DOMAIN);
-    projectKey = getProperty(CONFIG.PROPERTIES.JIRA_PROJECT_KEY);
+    const domain = getProperty(CONFIG.PROPERTIES.JIRA_DOMAIN);
+    const email = getProperty(CONFIG.PROPERTIES.JIRA_EMAIL);
+    const apiToken = getProperty(CONFIG.PROPERTIES.JIRA_API_TOKEN);
+    const projectKey = getProperty(CONFIG.PROPERTIES.JIRA_PROJECT_KEY);
 
-    if (!token || !email || !domain || !projectKey) {
-      throw new Error('Jira configuration missing. Please check settings.');
+    if (!domain || !email || !apiToken || !projectKey) {
+      logInfo('Jira Config Debug', {
+        hasDomain: !!domain,
+        hasEmail: !!email,
+        hasToken: !!apiToken,
+        hasProjectKey: !!projectKey,
+        domain,
+        email,
+        projectKey,
+      });
+      throw new Error('Missing Jira configuration');
     }
 
-    // Construct proper URL - ensure no double https://
-    const baseUrl = domain.startsWith('https://') ? domain : `https://${domain}`;
-    const apiUrl = `${baseUrl}/rest/api/3/issue`;
+    const jiraUrl = domain.startsWith('https://') ? domain : `https://${domain}`;
+    const apiEndpoint = `${jiraUrl}/rest/api/3/issue`;
 
-    // Log request details (excluding sensitive info)
+    // Log request details for debugging
     logInfo('Jira Request', {
-      url: apiUrl,
+      url: apiEndpoint,
       email,
       projectKey,
       title: params.title,
       priority: params.priority,
     });
 
-    // Build description including metadata
-    const description = {
-      type: 'doc',
-      version: 1,
-      content: [
-        {
-          type: 'paragraph',
-          content: [
-            {
-              type: 'text',
-              text: params.description,
-            },
-          ],
-        },
-        {
-          type: 'paragraph',
-          content: [
-            {
-              type: 'text',
-              text: '\n\nTechnical Details:',
-              marks: [{ type: 'strong' }],
-            },
-          ],
-        },
-      ],
+    // Convert priority to Jira format
+    const priorityMap = {
+      High: '1',
+      Medium: '3',
+      Low: '5',
     };
 
-    // Add metadata to description instead of custom fields
-    if (params.metadata || params.technicalDetails) {
-      description.content.push({
-        type: 'bulletList',
-        content: [
-          ...(params.metadata?.emailId ? [{
-            type: 'listItem',
-            content: [{
-              type: 'paragraph',
-              content: [{
-                type: 'text',
-                text: `Email ID: ${params.metadata.emailId}`,
-              }],
-            }],
-          }] : []),
-          ...(params.metadata?.threadId ? [{
-            type: 'listItem',
-            content: [{
-              type: 'paragraph',
-              content: [{
-                type: 'text',
-                text: `Thread ID: ${params.metadata.threadId}`,
-              }],
-            }],
-          }] : []),
-          ...(params.technicalDetails?.appVersion ? [{
-            type: 'listItem',
-            content: [{
-              type: 'paragraph',
-              content: [{
-                type: 'text',
-                text: `App Version: ${params.technicalDetails.appVersion}`,
-              }],
-            }],
-          }] : []),
-          ...(params.technicalDetails?.deviceInfo ? [{
-            type: 'listItem',
-            content: [{
-              type: 'paragraph',
-              content: [{
-                type: 'text',
-                text: `Device: ${params.technicalDetails.deviceInfo.type} 
-                \n${params.technicalDetails.deviceInfo.model} (${params.technicalDetails.deviceInfo.osVersion})`,
-              }],
-            }],
-          }] : []),
-          ...(params.technicalDetails?.userIdentifiers?.aid ? [{
-            type: 'listItem',
-            content: [{
-              type: 'paragraph',
-              content: [{
-                type: 'text',
-                text: `AID: ${params.technicalDetails.userIdentifiers.aid}`,
-              }],
-            }],
-          }] : []),
-          ...(params.technicalDetails?.userIdentifiers?.userId ? [{
-            type: 'listItem',
-            content: [{
-              type: 'paragraph',
-              content: [{
-                type: 'text',
-                text: `User ID: ${params.technicalDetails.userIdentifiers.userId}`,
-              }],
-            }],
-          }] : []),
-        ],
+    const jiraPriority = priorityMap[params.priority] || '3';
+
+    // Format labels (remove special characters and lowercase)
+    const labels = [
+      'email-automation',
+      params.category?.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'uncategorized',
+    ];
+
+    // Create proper Jira description with technical details
+    const technicalDetails = JSON.parse(params.technicalDetails || '{}');
+    const metadata = JSON.parse(params.metadata || '{}');
+
+    const descriptionContent = [
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: params.description }],
+      },
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: '\nTechnical Details:', marks: [{ type: 'strong' }] }],
+      },
+    ];
+
+    // Add technical details if available
+    if (technicalDetails.appVersion) {
+      descriptionContent.push({
+        type: 'paragraph',
+        content: [{ type: 'text', text: `App Version: ${technicalDetails.appVersion}` }],
       });
+    }
+
+    if (technicalDetails.deviceInfo) {
+      const { deviceInfo } = technicalDetails;
+      if (deviceInfo.type || deviceInfo.model || deviceInfo.osVersion) {
+        descriptionContent.push({
+          type: 'paragraph',
+          content: [
+            {
+              type: 'text',
+              text: `Device: ${[
+                deviceInfo.type,
+                deviceInfo.model,
+                deviceInfo.osVersion,
+              ].filter(Boolean).join(', ')}`,
+            },
+          ],
+        });
+      }
+    }
+
+    // Add email metadata
+    if (metadata.emailId || metadata.threadId) {
+      descriptionContent.push({
+        type: 'paragraph',
+        content: [{ type: 'text', text: '\nEmail Reference:', marks: [{ type: 'strong' }] }],
+      });
+      if (metadata.emailId) {
+        descriptionContent.push({
+          type: 'paragraph',
+          content: [{ type: 'text', text: `Email ID: ${metadata.emailId}` }],
+        });
+      }
+      if (metadata.threadId) {
+        descriptionContent.push({
+          type: 'paragraph',
+          content: [{ type: 'text', text: `Thread ID: ${metadata.threadId}` }],
+        });
+      }
     }
 
     const payload = {
       fields: {
-        project: {
-          key: projectKey,
-        },
+        project: { key: projectKey },
         summary: params.title,
-        description,
-        issuetype: {
-          name: 'Task',
+        description: {
+          type: 'doc',
+          version: 1,
+          content: descriptionContent,
         },
-        priority: {
-          name: mapPriority(params.priority),
-        },
-        labels: ['email-automation', params.category.toLowerCase().split(' ').join('-')],
+        issuetype: { name: 'Task' },
+        priority: { id: jiraPriority },
+        labels,
       },
     };
 
+    // Log the payload for debugging
     logInfo('Jira Payload', payload);
 
-    const response = await UrlFetchApp.fetch(apiUrl, {
+    const response = await UrlFetchApp.fetch(apiEndpoint, {
       method: 'post',
       headers: {
-        Authorization: `Basic ${Utilities.base64Encode(`${email}:${token}`)}`,
-        'Content-Type': 'application/json',
+        Authorization: `Basic ${Utilities.base64Encode(`${email}:${apiToken}`)}`,
         Accept: 'application/json',
+        'Content-Type': 'application/json',
       },
       muteHttpExceptions: true,
       payload: JSON.stringify(payload),
     });
 
-    // Log response details
-    const responseCode = response.getResponseCode();
-    const responseText = response.getContentText();
-    const responseHeaders = response.getAllHeaders();
-
+    const responseData = JSON.parse(response.getContentText());
     logInfo('Jira Response Details', {
-      status: responseCode,
-      headers: responseHeaders,
-      body: responseText,
+      status: response.getResponseCode(),
+      headers: response.getAllHeaders(),
+      body: response.getContentText(),
     });
 
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch (parseError) {
-      logError('Jira Response Parse Error', {
-        error: parseError.message,
-        responseText,
-      });
-      throw new Error('Failed to parse Jira response');
+    if (response.getResponseCode() !== 201) {
+      throw new Error(`Jira API Error: ${responseData.errorMessages?.[0] || 'Unknown error'}`);
     }
 
-    if (responseCode !== 201) {
-      logError('Jira API Error', {
-        status: responseCode,
-        headers: responseHeaders,
-        response: result,
-        payload,
-      });
-
-      const errorMessage = result.errorMessages?.[0]
-        || result.errors?.[Object.keys(result.errors)[0]]
-        || result.message
-        || `HTTP ${responseCode}`;
-
-      throw new Error(`Jira API Error: ${errorMessage}`);
-    }
-
-    if (!result.key) {
-      logError('Jira Issue Creation', {
-        response: result,
-        payload,
-      });
-      throw new Error('Failed to create Jira issue - no key returned');
-    }
-
-    logInfo('Jira Issue Created', {
-      key: result.key,
-      id: result.id,
-      url: `${baseUrl}/browse/${result.key}`,
-    });
+    const issueKey = responseData.key;
+    const issueUrl = `${jiraUrl}/browse/${issueKey}`;
 
     return {
-      id: result.id,
-      url: `${baseUrl}/browse/${result.key}`,
+      success: true,
+      id: issueKey,
+      url: issueUrl,
     };
   } catch (error) {
-    logError('Create Jira Issue Error', {
-      error: error.message,
-      stack: error.stack,
-      config: {
-        domain: domain || '(missing)',
-        projectKey: projectKey || '(missing)',
-        email: email ? '(set)' : '(missing)',
-        token: token ? '(set)' : '(missing)',
-      },
-    });
+    logError('Create Jira Issue Error', error);
     throw error;
   }
 };

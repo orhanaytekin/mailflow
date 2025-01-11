@@ -6,9 +6,9 @@ export const CONFIG = {
   },
 
   LABELS: {
-    PROCESSED: 'Processed',
-    CUSTOMER_SUPPORT: 'Customer-Support',
     DISCOVERY: 'Auto-Discovery',
+    PROCESSED: 'Processed by Automation',
+    SKIPPED: 'Skipped by Automation',
   },
 
   WORKFLOWS: {

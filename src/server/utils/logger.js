@@ -6,15 +6,20 @@ const LOG_LEVEL = {
   ERROR: 'ERROR',
 };
 
-export const logError = (context, error) => {
-  console.error(
-    JSON.stringify({
-      level: LOG_LEVEL.ERROR,
-      context,
-      error: error.message || error,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+export const logError = (context, error, metadata = {}) => {
+  const errorDetails = {
+    timestamp: new Date().toISOString(),
+    context,
+    error: {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    },
+    metadata,
+    user: Session.getEffectiveUser().getEmail(),
+  };
+
+  console.error(JSON.stringify(errorDetails, null, 2));
 };
 
 export const logWarning = (context, message) => {

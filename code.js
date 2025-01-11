@@ -18,8 +18,6 @@ function handleDeleteIntegration() {
 // Add to global exports
 function showDeleteConfirmation() {
 }
-function toggleDiscovery() {
-}
 // Add settings handlers with correct names
 function onSaveOPENAISettings(e) {
 }
@@ -36,8 +34,12 @@ function testJiraSetup() {
 // Add to global scope
 function processNewEmails() {
 }
-// Add to global exports
+// Update globals
+function showSetupGuide() {
+}
 function enableDiscovery() {
+}
+function disableDiscovery() {
 }var AppLib;
 /******/ (() => { // webpackBootstrap
 /******/ 	"use strict";
@@ -100,8 +102,7 @@ __webpack_require__.d(__webpack_exports__, {
   onHomepage: () => (/* binding */ src_onHomepage),
   showDeleteConfirmation: () => (/* reexport */ showDeleteConfirmation),
   showIntegrationSettings: () => (/* binding */ showIntegrationSettings),
-  showSettingsCard: () => (/* binding */ showSettingsCard),
-  toggleDiscovery: () => (/* reexport */ toggleDiscovery)
+  showSettingsCard: () => (/* binding */ showSettingsCard)
 });
 
 ;// CONCATENATED MODULE: ./src/server/config/constants.js
@@ -112,9 +113,9 @@ const constants_CONFIG = {
     DESCRIPTION: 'Automate task creation from Gmail emails'
   },
   LABELS: {
-    PROCESSED: 'Processed',
-    CUSTOMER_SUPPORT: 'Customer-Support',
-    DISCOVERY: 'Auto-Discovery'
+    DISCOVERY: 'Auto-Discovery',
+    PROCESSED: 'Processed by Automation',
+    SKIPPED: 'Skipped by Automation'
   },
   WORKFLOWS: {
     CUSTOMER_SUPPORT: {
@@ -253,13 +254,19 @@ const LOG_LEVEL = {
   WARNING: 'WARNING',
   ERROR: 'ERROR'
 };
-const logger_logError = (context, error) => {
-  console.error(JSON.stringify({
-    level: LOG_LEVEL.ERROR,
+const logger_logError = (context, error, metadata = {}) => {
+  const errorDetails = {
+    timestamp: new Date().toISOString(),
     context,
-    error: error.message || error,
-    timestamp: new Date().toISOString()
-  }));
+    error: {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    },
+    metadata,
+    user: Session.getEffectiveUser().getEmail()
+  };
+  console.error(JSON.stringify(errorDetails, null, 2));
 };
 const logWarning = (context, message) => {
   console.warn(JSON.stringify({
@@ -381,66 +388,102 @@ const addLabel = async (messageId, labelName) => {
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 const MODEL = 'gpt-4';
 const SYSTEM_PROMPT = `You are an AI assistant analyzing customer support emails. First determine if the email is 
-relevant to customer support or app-related issues. If the email is empty, spam, or completely unrelated, respond with:
+relevant to customer support by checking if it contains:
+- Questions about products/services
+- Bug reports
+- Feature requests
+- Technical issues
+- General support inquiries
+- Feedback
+- Complaints
+
+If the email is spam, automated notification, or completely unrelated to customer support, respond with:
 {
   "relevant": false,
-  "reason": "Brief explanation why this email is not relevant"
+  "reason": "Brief explanation why this is not a customer support matter"
 }
 
-For relevant emails, carefully extract ALL technical information, especially:
-- Device information (iPhone model, Android device, etc.)
-- OS versions (iOS version, Android version)
-- App version numbers
-- Any identifiers (AID, User ID, Device ID)
-- Technical context from email signatures
+For relevant emails, analyze the content and determine appropriate platforms based on these rules:
+- JIRA: Bugs, technical issues, high-priority items, security concerns
+- Notion: Feature requests, enhancements, documentation needs, long-term tracking
+- Both: Complex issues requiring both tracking and technical resolution
 
-Format response as a structured JSON with "relevant": true:
+Format response as:
 {
   "relevant": true,
   "analysis": {
-    "summary": "Brief, clear summary focusing on the main request/issue",
-    "details": "Detailed analysis including any context provided",
+    "summary": "Clear, concise summary of the main request/issue",
+    "details": "Detailed analysis of the problem, steps to reproduce if available",
     "sentiment": "positive|neutral|negative"
   },
   "emailMetadata": {
     "priority": "High|Medium|Low",
     "category": "Bug|Feature Request|Question|Support",
-    "responseNeeded": true|false
+    "responseNeeded": true|false,
+    "platforms": ["JIRA", "NOTION"] // Platforms where this should be created
   },
-  "technicalDetails": {
+  "technicalDetails": {  // Optional but valuable if available
     "appVersion": "string or null",
     "deviceInfo": {
-      "type": "string or null (e.g., 'iPhone', 'Android')",
-      "model": "string or null (e.g., 'iPhone 11', 'Pixel 6')",
-      "osVersion": "string or null (e.g., 'iOS 17.6.1')",
+      "type": "string or null",
+      "model": "string or null",
+      "osVersion": "string or null",
       "deviceId": "string or null"
     },
     "userIdentifiers": {
       "userId": "string or null",
-      "aid": "string or null (e.g., '46AA6F08-451D-4E62-B9CE-D8C945848BEE')",
+      "aid": "string or null",
       "otherIds": []
     }
   }
 }
 
-Important:
-1. ALWAYS extract technical information even if it appears in signatures or informal parts of the email
-2. Look for version numbers in formats like x.x.x or standard version patterns
-3. Parse device information from phrases like "Sent from my iPhone" or similar signatures
-4. Include ALL identifiers found in the email, especially AID or User ID
-5. If information is not found, use null instead of omitting the field
+Guidelines for platform selection:
+1. JIRA:
+   - All bugs regardless of priority
+   - High-priority support issues
+   - Security concerns
+   - System outages
+   - Data-related issues
 
-Example technical patterns to look for:
-- "iPhone X, iOS 15.5"
-- "App version 2.1.0"
-- "AID: XXXXX-XXXXX-XXXXX"
-- "Sent from my [Device]"
-- "Version 3.0.0"
-- "Build 123"
-- "Device ID: XXXXX"
+2. Notion:
+   - Feature requests and enhancements
+   - Documentation updates
+   - Process improvements
+   - General feedback
+   - Knowledge base items
 
-Extract any technical information like app versions, device details, and user IDs, even if they appear in 
-different formats or locations in the email.`;
+3. Both Platforms:
+   - Complex issues needing both tracking and technical work
+   - Major feature requests with technical implications
+   - Strategic product changes
+   - Issues requiring cross-team collaboration
+  
+For relevant emails, analyze the content and extract any available technical information. Format response as:
+    "priority": "High|Medium|Low", // Based on urgency words, reported impact
+    "responseNeeded": true|false
+
+Guidelines for analysis:
+
+1. RELEVANCE: Focus on customer support nature, not technical details availability
+
+2. PRIORITY:
+   - High: System down, blocking issues, data loss, security concerns
+   - Medium: Feature requests, non-blocking bugs, account issues
+   - Low: General questions, minor UI issues, suggestions
+
+3. TECHNICAL INFO: Extract if available but don't reject emails without it
+
+4. RESPONSE NEEDED: True if the email requires a response or action
+
+Examples of relevant emails (even without technical details):
+- "The app keeps crashing" (Bug)
+- "Can you add dark mode?" (Feature Request)
+- "How do I reset my password?" (Support)
+- "I can't access my account" (Support)
+- "The new update is confusing" (Feedback)
+
+Remember: Technical details enhance the support process but their absence doesn't make an email irrelevant.`;
 const openai_analyzeEmail = async (subject, body) => {
   try {
     const apiKey = settings_getProperty(constants_CONFIG.PROPERTIES.OPENAI_API_KEY);
@@ -473,18 +516,78 @@ const openai_analyzeEmail = async (subject, body) => {
       throw new Error(result.error.message);
     }
     try {
+      var _analysis$analysis, _analysis$analysis2, _analysis$analysis3, _analysis$emailMetada, _analysis$emailMetada2, _analysis$emailMetada3, _analysis$emailMetada4, _analysis$technicalDe, _analysis$technicalDe2, _analysis$technicalDe3, _analysis$technicalDe4, _analysis$technicalDe5, _analysis$technicalDe6, _analysis$technicalDe7, _analysis$technicalDe8;
       const analysis = JSON.parse(result.choices[0].message.content);
 
-      // If email is not relevant, throw an error with the reason
+      // If email is not relevant, return the analysis instead of throwing
       if (!analysis.relevant) {
-        throw new Error(`Email skipped: ${analysis.reason}`);
+        logger_logInfo('Email Analysis', `Email skipped: ${analysis.reason}`);
+        return analysis;
       }
+
+      // Add fallback values for required fields
+      const processedAnalysis = {
+        relevant: true,
+        analysis: {
+          summary: ((_analysis$analysis = analysis.analysis) === null || _analysis$analysis === void 0 ? void 0 : _analysis$analysis.summary) || subject || 'Untitled Request',
+          details: ((_analysis$analysis2 = analysis.analysis) === null || _analysis$analysis2 === void 0 ? void 0 : _analysis$analysis2.details) || body || 'No details provided',
+          sentiment: ((_analysis$analysis3 = analysis.analysis) === null || _analysis$analysis3 === void 0 ? void 0 : _analysis$analysis3.sentiment) || 'neutral'
+        },
+        emailMetadata: {
+          priority: ((_analysis$emailMetada = analysis.emailMetadata) === null || _analysis$emailMetada === void 0 ? void 0 : _analysis$emailMetada.priority) || 'Medium',
+          category: ((_analysis$emailMetada2 = analysis.emailMetadata) === null || _analysis$emailMetada2 === void 0 ? void 0 : _analysis$emailMetada2.category) || 'Support',
+          responseNeeded: ((_analysis$emailMetada3 = analysis.emailMetadata) === null || _analysis$emailMetada3 === void 0 ? void 0 : _analysis$emailMetada3.responseNeeded) || true,
+          platforms: ((_analysis$emailMetada4 = analysis.emailMetadata) === null || _analysis$emailMetada4 === void 0 ? void 0 : _analysis$emailMetada4.platforms) || ['JIRA', 'NOTION']
+        },
+        technicalDetails: {
+          appVersion: ((_analysis$technicalDe = analysis.technicalDetails) === null || _analysis$technicalDe === void 0 ? void 0 : _analysis$technicalDe.appVersion) || null,
+          deviceInfo: {
+            type: ((_analysis$technicalDe2 = analysis.technicalDetails) === null || _analysis$technicalDe2 === void 0 || (_analysis$technicalDe2 = _analysis$technicalDe2.deviceInfo) === null || _analysis$technicalDe2 === void 0 ? void 0 : _analysis$technicalDe2.type) || null,
+            model: ((_analysis$technicalDe3 = analysis.technicalDetails) === null || _analysis$technicalDe3 === void 0 || (_analysis$technicalDe3 = _analysis$technicalDe3.deviceInfo) === null || _analysis$technicalDe3 === void 0 ? void 0 : _analysis$technicalDe3.model) || null,
+            osVersion: ((_analysis$technicalDe4 = analysis.technicalDetails) === null || _analysis$technicalDe4 === void 0 || (_analysis$technicalDe4 = _analysis$technicalDe4.deviceInfo) === null || _analysis$technicalDe4 === void 0 ? void 0 : _analysis$technicalDe4.osVersion) || null,
+            deviceId: ((_analysis$technicalDe5 = analysis.technicalDetails) === null || _analysis$technicalDe5 === void 0 || (_analysis$technicalDe5 = _analysis$technicalDe5.deviceInfo) === null || _analysis$technicalDe5 === void 0 ? void 0 : _analysis$technicalDe5.deviceId) || null
+          },
+          userIdentifiers: {
+            userId: ((_analysis$technicalDe6 = analysis.technicalDetails) === null || _analysis$technicalDe6 === void 0 || (_analysis$technicalDe6 = _analysis$technicalDe6.userIdentifiers) === null || _analysis$technicalDe6 === void 0 ? void 0 : _analysis$technicalDe6.userId) || null,
+            aid: ((_analysis$technicalDe7 = analysis.technicalDetails) === null || _analysis$technicalDe7 === void 0 || (_analysis$technicalDe7 = _analysis$technicalDe7.userIdentifiers) === null || _analysis$technicalDe7 === void 0 ? void 0 : _analysis$technicalDe7.aid) || null,
+            otherIds: ((_analysis$technicalDe8 = analysis.technicalDetails) === null || _analysis$technicalDe8 === void 0 || (_analysis$technicalDe8 = _analysis$technicalDe8.userIdentifiers) === null || _analysis$technicalDe8 === void 0 ? void 0 : _analysis$technicalDe8.otherIds) || []
+          }
+        }
+      };
       logger_logInfo('Email Analysis', `Analysis completed for: ${subject}`);
-      logger_logInfo('Email Analysis', `Analysis: ${JSON.stringify(analysis)}`);
-      return analysis;
+      logger_logInfo('Email Analysis', `Analysis: ${JSON.stringify(processedAnalysis)}`);
+      return processedAnalysis;
     } catch (parseError) {
       logger_logError('OpenAI Response Parse Error', parseError);
-      throw new Error('Failed to parse AI response. Please try again.');
+      // Return a basic analysis structure if parsing fails
+      return {
+        relevant: true,
+        analysis: {
+          summary: subject || 'Untitled Request',
+          details: body || 'No details provided',
+          sentiment: 'neutral'
+        },
+        emailMetadata: {
+          priority: 'Medium',
+          category: 'Support',
+          responseNeeded: true,
+          platforms: ['JIRA', 'NOTION']
+        },
+        technicalDetails: {
+          appVersion: null,
+          deviceInfo: {
+            type: null,
+            model: null,
+            osVersion: null,
+            deviceId: null
+          },
+          userIdentifiers: {
+            userId: null,
+            aid: null,
+            otherIds: []
+          }
+        }
+      };
     }
   } catch (error) {
     logger_logError('Analyze Email Error', error);
@@ -516,10 +619,9 @@ const deleteEmailTrigger = () => {
 };
 const createEmailTrigger = () => {
   try {
-    // Delete existing triggers first
     deleteEmailTrigger();
 
-    // Create a time-based trigger that runs every hour
+    // Create time-based trigger that runs every hour
     ScriptApp.newTrigger(TRIGGER_FUNCTION_NAME).timeBased().everyHours(1).create();
 
     // Create the label if it doesn't exist
@@ -528,7 +630,7 @@ const createEmailTrigger = () => {
       label = GmailApp.createLabel(constants_CONFIG.LABELS.DISCOVERY);
     }
     setProperty(DISCOVERY_ENABLED_KEY, 'true');
-    logger_logInfo('Triggers', 'Email discovery trigger created');
+    logger_logInfo('Triggers', 'Hourly email discovery trigger created');
     return true;
   } catch (error) {
     logger_logError('Create Trigger Error', error);
@@ -551,6 +653,7 @@ const createErrorCard = message => {
 };
 const createHomeCard = () => {
   const card = CardService.newCardBuilder();
+  const isEnabled = triggers_isDiscoveryEnabled();
 
   // Add header
   card.setHeader(components_createHeader('Gmail Task Automation', 'Automate your email workflows', false));
@@ -560,6 +663,15 @@ const createHomeCard = () => {
   if (settingsSection) {
     card.addSection(settingsSection);
   }
+
+  // Add auto-discovery section
+  const discoverySection = CardService.newCardSection().setHeader('🔄 Auto-Discovery').addWidget(CardService.newTextParagraph().setText('Automatically process new emails based on filters.'));
+  if (isEnabled) {
+    discoverySection.addWidget(CardService.newTextButton().setText('Disable Auto-Discovery').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setBackgroundColor('#d93025').setOnClickAction(CardService.newAction().setFunctionName('disableDiscovery'))).addWidget(CardService.newTextParagraph().setText('Currently checking every hour'));
+  } else {
+    discoverySection.addWidget(CardService.newTextButton().setText('Enable Auto-Discovery').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setOnClickAction(CardService.newAction().setFunctionName('showSetupGuide')));
+  }
+  card.addSection(discoverySection);
 
   // Add selected email information
   try {
@@ -574,11 +686,9 @@ const createHomeCard = () => {
     card.addSection(noEmailSection);
   }
 
-  // Main workflow button
-  const workflowSection = components_createSection('Quick Actions', [createActionButton('📋 Customer Support Workflow', 'handleCustomerSupportWorkflow', {}, 'filled'), createButtonSet([createActionButton('Analyze Email', 'analyzeCurrentEmail')])]);
-  const discoveryEnabled = triggers_isDiscoveryEnabled();
-  const discoverySection = components_createSection('Auto-Discovery', [CardService.newTextParagraph().setText(discoveryEnabled ? '✅ Auto-discovery is enabled. New emails will be analyzed automatically.' : '❌ Auto-discovery is disabled. Enable it to analyze new emails automatically.'), createActionButton(discoveryEnabled ? 'Disable Auto-Discovery' : 'Enable Auto-Discovery', 'toggleDiscovery', {}, discoveryEnabled ? 'text' : 'filled')]);
-  return card.addSection(workflowSection).addSection(discoverySection).build();
+  // Main workflow button - removed Analyze Email button
+  const workflowSection = components_createSection('Quick Actions', [createActionButton('📋 Customer Support Workflow', 'handleCustomerSupportWorkflow', {}, 'filled')]);
+  return card.addSection(workflowSection).build();
 };
 const createAnalysisCard = async () => {
   const card = CardService.newCardBuilder();
@@ -645,6 +755,62 @@ const createSettingsCard = () => {
     return createKeyValueWidget(integration.name, isConfigured ? 'Connected' : 'Not Configured', isConfigured ? CardService.Icon.CONFIRMATION_NUMBER_ICON : CardService.Icon.DESCRIPTION);
   }).concat([createActionButton('Configure Integrations', 'showIntegrationSettings')]));
   return card.addSection(integrationSection).build();
+};
+const createWorkflowResultCard = analysis => {
+  const card = CardService.newCardBuilder();
+
+  // Header
+  const header = CardService.newCardHeader().setTitle('Analysis Results').setImageUrl('https://www.gstatic.com/images/icons/material/system/1x/analytics_black_24dp.png');
+  card.setHeader(header);
+
+  // Summary section
+  const summarySection = CardService.newCardSection().setHeader('📋 Summary').addWidget(CardService.newTextParagraph().setText(analysis.analysis.summary));
+
+  // Add priority and category
+  summarySection.addWidget(CardService.newKeyValue().setTopLabel('Priority').setContent(analysis.emailMetadata.priority).setIcon(analysis.emailMetadata.priority.toLowerCase() === 'high' ? CardService.Icon.PRIORITY_HIGH : CardService.Icon.PRIORITY_LOW));
+  summarySection.addWidget(CardService.newKeyValue().setTopLabel('Category').setContent(analysis.emailMetadata.category).setIcon(CardService.Icon.FOLDER));
+
+  // Add sentiment if available
+  if (analysis.analysis.sentiment) {
+    summarySection.addWidget(CardService.newKeyValue().setTopLabel('Sentiment').setContent(analysis.analysis.sentiment).setIcon((() => {
+      const sentiment = analysis.analysis.sentiment.toLowerCase();
+      if (sentiment === 'positive') {
+        return CardService.Icon.STAR;
+      }
+      if (sentiment === 'negative') {
+        return CardService.Icon.WARNING;
+      }
+      return CardService.Icon.DESCRIPTION;
+    })()));
+  }
+  card.addSection(summarySection);
+
+  // Details section
+  const detailsSection = CardService.newCardSection().setHeader('🔍 Details').addWidget(CardService.newTextParagraph().setText(analysis.analysis.details));
+
+  // Add technical details if available
+  if (analysis.technicalDetails) {
+    var _analysis$technicalDe, _analysis$technicalDe2;
+    const techDetails = [];
+    if (analysis.technicalDetails.appVersion) {
+      techDetails.push(`App Version: ${analysis.technicalDetails.appVersion}`);
+    }
+    if ((_analysis$technicalDe = analysis.technicalDetails.deviceInfo) !== null && _analysis$technicalDe !== void 0 && _analysis$technicalDe.type) {
+      techDetails.push(`Device: ${analysis.technicalDetails.deviceInfo.type}`);
+    }
+    if ((_analysis$technicalDe2 = analysis.technicalDetails.deviceInfo) !== null && _analysis$technicalDe2 !== void 0 && _analysis$technicalDe2.osVersion) {
+      techDetails.push(`OS: ${analysis.technicalDetails.deviceInfo.osVersion}`);
+    }
+    if (techDetails.length > 0) {
+      detailsSection.addWidget(CardService.newTextParagraph().setText(`\n🔧 Technical Information:\n${techDetails.join('\n')}`));
+    }
+  }
+  card.addSection(detailsSection);
+
+  // Add back to home button
+  const actionSection = CardService.newCardSection().setHeader('Actions').addWidget(CardService.newTextButton().setText('Back to Home').setTextButtonStyle(CardService.TextButtonStyle.TEXT).setOnClickAction(CardService.newAction().setFunctionName('onHomepage')));
+  card.addSection(actionSection);
+  return card.build();
 };
 ;// CONCATENATED MODULE: ./src/server/integrations/notion.js
 
@@ -905,132 +1071,123 @@ const checkNotionSetup = async () => {
 
 
 
-
-// Helper function to map our priority levels to Jira priority names
-const mapPriority = priority => {
-  switch (priority.toLowerCase()) {
-    case 'high':
-      return 'High';
-    case 'medium':
-      return 'Medium';
-    case 'low':
-      return 'Low';
-    default:
-      return 'Medium';
-  }
-};
 const createJiraIssue = async params => {
-  // Declare variables at the top of the function scope
-  let token;
-  let email;
-  let domain;
-  let projectKey;
   try {
-    token = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_API_TOKEN);
-    email = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_EMAIL);
-    domain = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_DOMAIN);
-    projectKey = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_PROJECT_KEY);
-    if (!token || !email || !domain || !projectKey) {
-      throw new Error('Jira configuration missing. Please check settings.');
+    var _params$category;
+    const domain = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_DOMAIN);
+    const email = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_EMAIL);
+    const apiToken = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_API_TOKEN);
+    const projectKey = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_PROJECT_KEY);
+    if (!domain || !email || !apiToken || !projectKey) {
+      logger_logInfo('Jira Config Debug', {
+        hasDomain: !!domain,
+        hasEmail: !!email,
+        hasToken: !!apiToken,
+        hasProjectKey: !!projectKey,
+        domain,
+        email,
+        projectKey
+      });
+      throw new Error('Missing Jira configuration');
     }
+    const jiraUrl = domain.startsWith('https://') ? domain : `https://${domain}`;
+    const apiEndpoint = `${jiraUrl}/rest/api/3/issue`;
 
-    // Construct proper URL - ensure no double https://
-    const baseUrl = domain.startsWith('https://') ? domain : `https://${domain}`;
-    const apiUrl = `${baseUrl}/rest/api/3/issue`;
-
-    // Log request details (excluding sensitive info)
+    // Log request details for debugging
     logger_logInfo('Jira Request', {
-      url: apiUrl,
+      url: apiEndpoint,
       email,
       projectKey,
       title: params.title,
       priority: params.priority
     });
 
-    // Build description including metadata
-    const description = {
-      type: 'doc',
-      version: 1,
+    // Convert priority to Jira format
+    const priorityMap = {
+      High: '1',
+      Medium: '3',
+      Low: '5'
+    };
+    const jiraPriority = priorityMap[params.priority] || '3';
+
+    // Format labels (remove special characters and lowercase)
+    const labels = ['email-automation', ((_params$category = params.category) === null || _params$category === void 0 ? void 0 : _params$category.toLowerCase().replace(/[^a-z0-9]/g, '-')) || 'uncategorized'];
+
+    // Create proper Jira description with technical details
+    const technicalDetails = JSON.parse(params.technicalDetails || '{}');
+    const metadata = JSON.parse(params.metadata || '{}');
+    const descriptionContent = [{
+      type: 'paragraph',
       content: [{
-        type: 'paragraph',
-        content: [{
-          type: 'text',
-          text: params.description
+        type: 'text',
+        text: params.description
+      }]
+    }, {
+      type: 'paragraph',
+      content: [{
+        type: 'text',
+        text: '\nTechnical Details:',
+        marks: [{
+          type: 'strong'
         }]
-      }, {
+      }]
+    }];
+
+    // Add technical details if available
+    if (technicalDetails.appVersion) {
+      descriptionContent.push({
         type: 'paragraph',
         content: [{
           type: 'text',
-          text: '\n\nTechnical Details:',
+          text: `App Version: ${technicalDetails.appVersion}`
+        }]
+      });
+    }
+    if (technicalDetails.deviceInfo) {
+      const {
+        deviceInfo
+      } = technicalDetails;
+      if (deviceInfo.type || deviceInfo.model || deviceInfo.osVersion) {
+        descriptionContent.push({
+          type: 'paragraph',
+          content: [{
+            type: 'text',
+            text: `Device: ${[deviceInfo.type, deviceInfo.model, deviceInfo.osVersion].filter(Boolean).join(', ')}`
+          }]
+        });
+      }
+    }
+
+    // Add email metadata
+    if (metadata.emailId || metadata.threadId) {
+      descriptionContent.push({
+        type: 'paragraph',
+        content: [{
+          type: 'text',
+          text: '\nEmail Reference:',
           marks: [{
             type: 'strong'
           }]
         }]
-      }]
-    };
-
-    // Add metadata to description instead of custom fields
-    if (params.metadata || params.technicalDetails) {
-      var _params$metadata, _params$metadata2, _params$technicalDeta, _params$technicalDeta2, _params$technicalDeta3, _params$technicalDeta4;
-      description.content.push({
-        type: 'bulletList',
-        content: [...((_params$metadata = params.metadata) !== null && _params$metadata !== void 0 && _params$metadata.emailId ? [{
-          type: 'listItem',
-          content: [{
-            type: 'paragraph',
-            content: [{
-              type: 'text',
-              text: `Email ID: ${params.metadata.emailId}`
-            }]
-          }]
-        }] : []), ...((_params$metadata2 = params.metadata) !== null && _params$metadata2 !== void 0 && _params$metadata2.threadId ? [{
-          type: 'listItem',
-          content: [{
-            type: 'paragraph',
-            content: [{
-              type: 'text',
-              text: `Thread ID: ${params.metadata.threadId}`
-            }]
-          }]
-        }] : []), ...((_params$technicalDeta = params.technicalDetails) !== null && _params$technicalDeta !== void 0 && _params$technicalDeta.appVersion ? [{
-          type: 'listItem',
-          content: [{
-            type: 'paragraph',
-            content: [{
-              type: 'text',
-              text: `App Version: ${params.technicalDetails.appVersion}`
-            }]
-          }]
-        }] : []), ...((_params$technicalDeta2 = params.technicalDetails) !== null && _params$technicalDeta2 !== void 0 && _params$technicalDeta2.deviceInfo ? [{
-          type: 'listItem',
-          content: [{
-            type: 'paragraph',
-            content: [{
-              type: 'text',
-              text: `Device: ${params.technicalDetails.deviceInfo.type} 
-                \n${params.technicalDetails.deviceInfo.model} (${params.technicalDetails.deviceInfo.osVersion})`
-            }]
-          }]
-        }] : []), ...((_params$technicalDeta3 = params.technicalDetails) !== null && _params$technicalDeta3 !== void 0 && (_params$technicalDeta3 = _params$technicalDeta3.userIdentifiers) !== null && _params$technicalDeta3 !== void 0 && _params$technicalDeta3.aid ? [{
-          type: 'listItem',
-          content: [{
-            type: 'paragraph',
-            content: [{
-              type: 'text',
-              text: `AID: ${params.technicalDetails.userIdentifiers.aid}`
-            }]
-          }]
-        }] : []), ...((_params$technicalDeta4 = params.technicalDetails) !== null && _params$technicalDeta4 !== void 0 && (_params$technicalDeta4 = _params$technicalDeta4.userIdentifiers) !== null && _params$technicalDeta4 !== void 0 && _params$technicalDeta4.userId ? [{
-          type: 'listItem',
-          content: [{
-            type: 'paragraph',
-            content: [{
-              type: 'text',
-              text: `User ID: ${params.technicalDetails.userIdentifiers.userId}`
-            }]
-          }]
-        }] : [])]
       });
+      if (metadata.emailId) {
+        descriptionContent.push({
+          type: 'paragraph',
+          content: [{
+            type: 'text',
+            text: `Email ID: ${metadata.emailId}`
+          }]
+        });
+      }
+      if (metadata.threadId) {
+        descriptionContent.push({
+          type: 'paragraph',
+          content: [{
+            type: 'text',
+            text: `Thread ID: ${metadata.threadId}`
+          }]
+        });
+      }
     }
     const payload = {
       fields: {
@@ -1038,85 +1195,52 @@ const createJiraIssue = async params => {
           key: projectKey
         },
         summary: params.title,
-        description,
+        description: {
+          type: 'doc',
+          version: 1,
+          content: descriptionContent
+        },
         issuetype: {
           name: 'Task'
         },
         priority: {
-          name: mapPriority(params.priority)
+          id: jiraPriority
         },
-        labels: ['email-automation', params.category.toLowerCase().split(' ').join('-')]
+        labels
       }
     };
+
+    // Log the payload for debugging
     logger_logInfo('Jira Payload', payload);
-    const response = await UrlFetchApp.fetch(apiUrl, {
+    const response = await UrlFetchApp.fetch(apiEndpoint, {
       method: 'post',
       headers: {
-        Authorization: `Basic ${Utilities.base64Encode(`${email}:${token}`)}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json'
+        Authorization: `Basic ${Utilities.base64Encode(`${email}:${apiToken}`)}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json'
       },
       muteHttpExceptions: true,
       payload: JSON.stringify(payload)
     });
-
-    // Log response details
-    const responseCode = response.getResponseCode();
-    const responseText = response.getContentText();
-    const responseHeaders = response.getAllHeaders();
+    const responseData = JSON.parse(response.getContentText());
     logger_logInfo('Jira Response Details', {
-      status: responseCode,
-      headers: responseHeaders,
-      body: responseText
+      status: response.getResponseCode(),
+      headers: response.getAllHeaders(),
+      body: response.getContentText()
     });
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch (parseError) {
-      logger_logError('Jira Response Parse Error', {
-        error: parseError.message,
-        responseText
-      });
-      throw new Error('Failed to parse Jira response');
+    if (response.getResponseCode() !== 201) {
+      var _responseData$errorMe;
+      throw new Error(`Jira API Error: ${((_responseData$errorMe = responseData.errorMessages) === null || _responseData$errorMe === void 0 ? void 0 : _responseData$errorMe[0]) || 'Unknown error'}`);
     }
-    if (responseCode !== 201) {
-      var _result$errorMessages, _result$errors;
-      logger_logError('Jira API Error', {
-        status: responseCode,
-        headers: responseHeaders,
-        response: result,
-        payload
-      });
-      const errorMessage = ((_result$errorMessages = result.errorMessages) === null || _result$errorMessages === void 0 ? void 0 : _result$errorMessages[0]) || ((_result$errors = result.errors) === null || _result$errors === void 0 ? void 0 : _result$errors[Object.keys(result.errors)[0]]) || result.message || `HTTP ${responseCode}`;
-      throw new Error(`Jira API Error: ${errorMessage}`);
-    }
-    if (!result.key) {
-      logger_logError('Jira Issue Creation', {
-        response: result,
-        payload
-      });
-      throw new Error('Failed to create Jira issue - no key returned');
-    }
-    logger_logInfo('Jira Issue Created', {
-      key: result.key,
-      id: result.id,
-      url: `${baseUrl}/browse/${result.key}`
-    });
+    const issueKey = responseData.key;
+    const issueUrl = `${jiraUrl}/browse/${issueKey}`;
     return {
-      id: result.id,
-      url: `${baseUrl}/browse/${result.key}`
+      success: true,
+      id: issueKey,
+      url: issueUrl
     };
   } catch (error) {
-    logger_logError('Create Jira Issue Error', {
-      error: error.message,
-      stack: error.stack,
-      config: {
-        domain: domain || '(missing)',
-        projectKey: projectKey || '(missing)',
-        email: email ? '(set)' : '(missing)',
-        token: token ? '(set)' : '(missing)'
-      }
-    });
+    logger_logError('Create Jira Issue Error', error);
     throw error;
   }
 };
@@ -1348,170 +1472,136 @@ const showDeleteConfirmation = e => {
 
 
 
-const createNotionNotification = (params, taskUrl) => {
-  var _params$technicalDeta, _params$technicalDeta2;
-  return {
-    blocks: [{
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `📝 *New Notion Task Created*\n${params.title}`
-      }
-    }, {
-      type: 'section',
-      fields: [{
-        type: 'mrkdwn',
-        text: `*Category:*\n${params.category}`
-      }, {
-        type: 'mrkdwn',
-        text: `*Priority:*\n${params.priority}`
-      }]
-    }, {
-      type: 'section',
-      fields: [...((_params$technicalDeta = params.technicalDetails) !== null && _params$technicalDeta !== void 0 && (_params$technicalDeta = _params$technicalDeta.userIdentifiers) !== null && _params$technicalDeta !== void 0 && _params$technicalDeta.userId ? [{
-        type: 'mrkdwn',
-        text: `*User ID:*\n${params.technicalDetails.userIdentifiers.userId}`
-      }] : []), ...((_params$technicalDeta2 = params.technicalDetails) !== null && _params$technicalDeta2 !== void 0 && (_params$technicalDeta2 = _params$technicalDeta2.userIdentifiers) !== null && _params$technicalDeta2 !== void 0 && _params$technicalDeta2.aid ? [{
-        type: 'mrkdwn',
-        text: `*AID:*\n${params.technicalDetails.userIdentifiers.aid}`
-      }] : [])]
-    }, ...(taskUrl ? [{
-      type: 'actions',
-      elements: [{
-        type: 'button',
-        text: {
-          type: 'plain_text',
-          text: 'View in Notion',
-          emoji: true
-        },
-        url: taskUrl
-      }]
-    }] : [])]
-  };
+const getCategoryEmoji = category => {
+  switch (category === null || category === void 0 ? void 0 : category.toLowerCase()) {
+    case 'bug':
+      return '🐛';
+    case 'feature request':
+      return '✨';
+    case 'enhancement':
+      return '🚀';
+    case 'question':
+      return '❓';
+    case 'support':
+      return '🆘';
+    default:
+      return '📝';
+  }
 };
-const createJiraNotification = (params, taskUrl) => {
-  var _params$technicalDeta3, _params$technicalDeta4, _params$technicalDeta5;
-  return {
-    blocks: [{
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `🎯 *New Jira Issue Created*\n${params.title}`
-      }
-    }, {
-      type: 'section',
-      fields: [{
-        type: 'mrkdwn',
-        text: `*Category:*\n${params.category}`
-      }, {
-        type: 'mrkdwn',
-        text: `*Priority:*\n${params.priority}`
-      }]
-    }, {
-      type: 'section',
-      fields: [...((_params$technicalDeta3 = params.technicalDetails) !== null && _params$technicalDeta3 !== void 0 && (_params$technicalDeta3 = _params$technicalDeta3.userIdentifiers) !== null && _params$technicalDeta3 !== void 0 && _params$technicalDeta3.userId ? [{
-        type: 'mrkdwn',
-        text: `*User ID:*\n${params.technicalDetails.userIdentifiers.userId}`
-      }] : []), ...((_params$technicalDeta4 = params.technicalDetails) !== null && _params$technicalDeta4 !== void 0 && (_params$technicalDeta4 = _params$technicalDeta4.userIdentifiers) !== null && _params$technicalDeta4 !== void 0 && _params$technicalDeta4.aid ? [{
-        type: 'mrkdwn',
-        text: `*AID:*\n${params.technicalDetails.userIdentifiers.aid}`
-      }] : []), ...((_params$technicalDeta5 = params.technicalDetails) !== null && _params$technicalDeta5 !== void 0 && _params$technicalDeta5.appVersion ? [{
-        type: 'mrkdwn',
-        text: `*App Version:*\n${params.technicalDetails.appVersion}`
-      }] : [])]
-    }, ...(taskUrl ? [{
-      type: 'actions',
-      elements: [{
-        type: 'button',
-        text: {
-          type: 'plain_text',
-          text: 'View in Jira',
-          emoji: true
-        },
-        url: taskUrl
-      }]
-    }] : [])]
-  };
+const getPriorityEmoji = priority => {
+  switch (priority === null || priority === void 0 ? void 0 : priority.toLowerCase()) {
+    case 'high':
+      return '🚨';
+    case 'medium':
+      return '🟡';
+    case 'low':
+      return '🟢';
+    default:
+      return '⚪';
+  }
 };
-const createDefaultNotification = params => {
-  var _params$technicalDeta6, _params$technicalDeta7, _params$technicalDeta8;
-  return {
-    blocks: [{
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `📧 *New Support Request*\n${params.title}`
-      }
+const formatTaskLinks = taskUrls => {
+  if (!taskUrls || Object.keys(taskUrls).length === 0) return null;
+  const links = Object.entries(taskUrls).map(([platform, url]) => {
+    let emoji;
+    let text;
+    switch (platform.toLowerCase()) {
+      case 'jira':
+        emoji = '🎯';
+        text = 'View Jira Issue';
+        break;
+      case 'notion':
+        emoji = '📘';
+        text = 'View Notion Page';
+        break;
+      default:
+        emoji = '🔗';
+        text = `View in ${platform}`;
+    }
+    return `${emoji} <${url}|${text}>`;
+  });
+  return links.join('\n');
+};
+const formatSlackMessage = params => {
+  const categoryEmoji = getCategoryEmoji(params.category);
+  const priorityEmoji = getPriorityEmoji(params.priority);
+  const blocks = [{
+    type: 'header',
+    text: {
+      type: 'plain_text',
+      text: `${categoryEmoji} New ${params.category || 'Support'}`,
+      emoji: true
+    }
+  }, {
+    type: 'section',
+    text: {
+      type: 'mrkdwn',
+      text: `*${params.title}*`
+    }
+  }, {
+    type: 'section',
+    fields: [{
+      type: 'mrkdwn',
+      text: `*Priority*\n${priorityEmoji} ${params.priority || 'Medium'}`
     }, {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: params.description
-      }
-    }, {
-      type: 'section',
-      fields: [{
-        type: 'mrkdwn',
-        text: `*Category:*\n${params.category}`
-      }, {
-        type: 'mrkdwn',
-        text: `*Priority:*\n${params.priority}`
-      }]
-    }, {
-      type: 'section',
-      fields: [...((_params$technicalDeta6 = params.technicalDetails) !== null && _params$technicalDeta6 !== void 0 && (_params$technicalDeta6 = _params$technicalDeta6.userIdentifiers) !== null && _params$technicalDeta6 !== void 0 && _params$technicalDeta6.userId ? [{
-        type: 'mrkdwn',
-        text: `*User ID:*\n${params.technicalDetails.userIdentifiers.userId}`
-      }] : []), ...((_params$technicalDeta7 = params.technicalDetails) !== null && _params$technicalDeta7 !== void 0 && (_params$technicalDeta7 = _params$technicalDeta7.userIdentifiers) !== null && _params$technicalDeta7 !== void 0 && _params$technicalDeta7.aid ? [{
-        type: 'mrkdwn',
-        text: `*AID:*\n${params.technicalDetails.userIdentifiers.aid}`
-      }] : []), ...((_params$technicalDeta8 = params.technicalDetails) !== null && _params$technicalDeta8 !== void 0 && _params$technicalDeta8.appVersion ? [{
-        type: 'mrkdwn',
-        text: `*App Version:*\n${params.technicalDetails.appVersion}`
-      }] : [])]
+      type: 'mrkdwn',
+      text: `*Category*\n${categoryEmoji} ${params.category || 'Support'}`
     }]
-  };
+  }];
+
+  // Add description if available (truncate if too long)
+  if (params.description) {
+    const truncatedDescription = params.description.length > 1000 ? `${params.description.substring(0, 1000)}...` : params.description;
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Details*\n${truncatedDescription}`
+      }
+    });
+  }
+
+  // Add task URLs if available
+  if (params.taskUrls) {
+    const taskLinks = formatTaskLinks(params.taskUrls);
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: taskLinks.split('\n').join('\n\n')
+      }
+    });
+  }
+  return blocks;
 };
 const sendSlackNotification = async params => {
   try {
     const webhookUrl = settings_getProperty(constants_CONFIG.PROPERTIES.SLACK_WEBHOOK_URL);
     if (!webhookUrl) {
-      throw new Error('Slack webhook URL not configured');
+      throw new Error(constants_CONFIG.ERROR_MESSAGES.MISSING_INTEGRATION('Slack'));
     }
-
-    // Choose template based on source
-    let payload;
-    if (params.source === 'notion' && params.taskUrl) {
-      payload = createNotionNotification(params, params.taskUrl);
-    } else if (params.source === 'jira' && params.taskUrl) {
-      payload = createJiraNotification(params, params.taskUrl);
-    } else {
-      payload = createDefaultNotification(params);
-    }
-    logger_logInfo('Slack Payload', payload);
+    const blocks = formatSlackMessage(params);
     const response = await UrlFetchApp.fetch(webhookUrl, {
       method: 'post',
-      contentType: 'application/json',
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      muteHttpExceptions: true,
+      payload: JSON.stringify({
+        blocks
+      })
     });
     if (response.getResponseCode() !== 200) {
       throw new Error(`Slack API Error: ${response.getContentText()}`);
     }
-    logger_logInfo('Slack Notification Sent', {
-      source: params.source || 'direct',
-      hasTaskUrl: !!params.taskUrl
+    logger_logInfo('Slack Notification', {
+      source: params.source,
+      hasTaskUrls: !!params.taskUrls
     });
-
-    // Return a proper result object
-    return {
-      id: new Date().getTime().toString(),
-      // Use timestamp as ID
-      url: null // Slack doesn't have a direct URL to the message
-    };
+    return true;
   } catch (error) {
     logger_logError('Send Slack Notification Error', error);
-    throw error;
+    return false;
   }
 };
 ;// CONCATENATED MODULE: ./src/server/workflows/customer-support.js
@@ -1525,221 +1615,179 @@ const sendSlackNotification = async params => {
 
 
 
-const createWorkflowResultCard = (analysis, metadata) => {
-  const card = CardService.newCardBuilder();
-  card.setHeader(CardService.newCardHeader().setTitle('Email Analysis').setSubtitle(metadata.subject));
-
-  // Analysis Summary Section
-  const summarySection = CardService.newCardSection().addWidget(CardService.newTextParagraph().setText(analysis.analysis.summary)).addWidget(CardService.newKeyValue().setTopLabel('Priority').setContent(analysis.emailMetadata.priority)).addWidget(CardService.newKeyValue().setTopLabel('Category').setContent(analysis.emailMetadata.category));
-
-  // Technical Details Section (if available)
-  if (analysis.technicalDetails) {
-    const techSection = CardService.newCardSection().addWidget(CardService.newTextParagraph().setText('🔧 Technical Details'));
-    if (analysis.technicalDetails.appVersion) {
-      techSection.addWidget(CardService.newKeyValue().setTopLabel('App Version').setContent(analysis.technicalDetails.appVersion));
+const createWorkflowTask = async (platform, params) => {
+  try {
+    var _result;
+    let result;
+    switch (platform.toLowerCase()) {
+      case 'jira':
+        try {
+          result = await createJiraIssue(params);
+        } catch (error) {
+          logger_logError('Jira Task Creation Error', error);
+          // Check if it's a configuration error
+          if (error.message.includes('configuration')) {
+            throw new Error('Jira is not properly configured. Please check your settings.');
+          }
+          throw error;
+        }
+        break;
+      case 'notion':
+        result = await createNotionTask(params);
+        break;
+      case 'slack':
+        // Slack is handled separately via sendSlackNotification
+        return {
+          success: true
+        };
+      // Don't throw error for Slack
+      default:
+        throw new Error(`Unsupported platform: ${platform}`);
     }
-    if (analysis.technicalDetails.deviceInfo) {
-      const {
-        deviceInfo
-      } = analysis.technicalDetails;
-      if (deviceInfo.type) {
-        techSection.addWidget(CardService.newKeyValue().setTopLabel('Device Type').setContent(deviceInfo.type));
-      }
-      if (deviceInfo.model) {
-        techSection.addWidget(CardService.newKeyValue().setTopLabel('Device Model').setContent(deviceInfo.model));
-      }
-      if (deviceInfo.osVersion) {
-        techSection.addWidget(CardService.newKeyValue().setTopLabel('OS Version').setContent(deviceInfo.osVersion));
-      }
+    if (!((_result = result) !== null && _result !== void 0 && _result.url)) {
+      throw new Error(`Failed to create task in ${platform}`);
     }
-    if (analysis.technicalDetails.userIdentifiers) {
-      const {
-        userIdentifiers
-      } = analysis.technicalDetails;
-      if (userIdentifiers.aid) {
-        techSection.addWidget(CardService.newKeyValue().setTopLabel('AID').setContent(userIdentifiers.aid));
-      }
-      if (userIdentifiers.userId) {
-        techSection.addWidget(CardService.newKeyValue().setTopLabel('User ID').setContent(userIdentifiers.userId));
-      }
-    }
-    card.addSection(techSection);
+    logger_logInfo('Task Creation', `Created ${platform.toLowerCase()} task for email`);
+    return {
+      success: true,
+      url: result.url,
+      taskId: result.id
+    };
+  } catch (error) {
+    logger_logError('Create Task Error', error);
+    return {
+      success: false,
+      error: error.message
+    };
   }
-
-  // Actions Section - Only show available integrations
-  const configuredPlatforms = settings_getConfiguredPlatforms('CUSTOMER_SUPPORT');
-  const actionsSection = CardService.newCardSection().setHeader('Available Actions');
-  if (configuredPlatforms.length === 0) {
-    actionsSection.addWidget(CardService.newTextParagraph().setText('⚠️ No task platforms configured. Please configure at least one platform in settings.')).addWidget(CardService.newTextButton().setText('Go to Settings').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setOnClickAction(CardService.newAction().setFunctionName('showIntegrationSettings')));
-  } else {
-    // Add button for each configured platform with descriptive text
-    configuredPlatforms.forEach(platform => {
-      const taskMetadata = {
-        emailId: metadata.id || '',
-        threadId: metadata.threadId || '',
-        sentiment: analysis.analysis.sentiment || 'neutral',
-        responseNeeded: analysis.emailMetadata.responseNeeded || false
+};
+const customer_support_processEmail = async (message, thread) => {
+  try {
+    const metadata = getMessageMetadata(message);
+    const analysis = await openai_analyzeEmail(metadata.subject, metadata.body);
+    if (!analysis.relevant) {
+      return {
+        success: false,
+        reason: analysis.reason || 'Email not relevant'
       };
-      let buttonText;
-      switch (platform.toLowerCase()) {
-        case 'slack':
-          buttonText = 'Send to Slack';
-          break;
-        case 'notion':
-          buttonText = 'Create in Notion';
-          break;
-        case 'jira':
-          buttonText = 'Create Jira Issue';
-          break;
-        default:
-          buttonText = `Send to ${platform}`;
-      }
-      actionsSection.addWidget(CardService.newTextButton().setText(buttonText).setTextButtonStyle(CardService.TextButtonStyle.FILLED).setOnClickAction(CardService.newAction().setFunctionName('createTask').setParameters({
-        platform,
-        title: analysis.analysis.summary || 'Untitled Task',
-        description: analysis.analysis.details || 'No description provided',
-        priority: analysis.emailMetadata.priority || 'Medium',
-        category: analysis.emailMetadata.category || 'Support',
-        metadata: JSON.stringify(taskMetadata),
-        technicalDetails: JSON.stringify(analysis.technicalDetails || null)
-      })));
-    });
-  }
+    }
 
-  // Add back button
-  actionsSection.addWidget(CardService.newTextButton().setText('Back').setOnClickAction(CardService.newAction().setFunctionName('onHomepage')));
-  return card.addSection(summarySection).addSection(actionsSection).build();
+    // Get platforms from AI analysis or fall back to configured ones
+    let platformsToUse = [];
+
+    // If AI suggests platforms, use those
+    if (analysis.emailMetadata.platforms && analysis.emailMetadata.platforms.length > 0) {
+      platformsToUse = analysis.emailMetadata.platforms.map(p => p.toLowerCase());
+    } else {
+      // Fallback to configured platforms
+      platformsToUse = settings_getConfiguredPlatforms('CUSTOMER_SUPPORT');
+    }
+    const taskUrls = {};
+    const errors = [];
+
+    // Create tasks in all determined platforms (except Slack)
+    await Promise.all(platformsToUse.map(async platform => {
+      // Skip Slack as it's for notifications only
+      if (platform.toLowerCase() === 'slack') return;
+      try {
+        const result = await createWorkflowTask(platform, {
+          title: analysis.analysis.summary,
+          description: analysis.analysis.details,
+          priority: analysis.emailMetadata.priority,
+          category: analysis.emailMetadata.category,
+          metadata: JSON.stringify({
+            emailId: message.getId(),
+            threadId: thread.getId(),
+            sentiment: analysis.analysis.sentiment,
+            responseNeeded: analysis.emailMetadata.responseNeeded
+          }),
+          technicalDetails: JSON.stringify(analysis.technicalDetails)
+        });
+        if (result !== null && result !== void 0 && result.success && result !== null && result !== void 0 && result.url) {
+          taskUrls[platform] = result.url;
+          logger_logInfo('Task Creation', `Created ${platform.toLowerCase()} task for email`);
+        } else if (result !== null && result !== void 0 && result.error) {
+          errors.push(`${platform}: ${result.error}`);
+        }
+      } catch (error) {
+        errors.push(`${platform}: ${error.message}`);
+        logger_logError(`${platform} Task Creation Error`, error);
+      }
+    }));
+
+    // Send single Slack notification only if we have created any tasks
+    if (Object.keys(taskUrls).length > 0) {
+      try {
+        await sendSlackNotification({
+          title: analysis.analysis.summary,
+          description: analysis.analysis.details,
+          priority: analysis.emailMetadata.priority,
+          category: analysis.emailMetadata.category,
+          taskUrls
+        });
+        logger_logInfo('Slack Notification', 'Sent notification with task URLs');
+      } catch (error) {
+        errors.push(`Slack: ${error.message}`);
+        logger_logError('Slack Notification Error', error);
+      }
+    }
+
+    // Return success if we created at least one task, even if there were some errors
+    return {
+      success: Object.keys(taskUrls).length > 0,
+      analysis,
+      taskUrls,
+      errors: errors.length > 0 ? errors : undefined
+    };
+  } catch (error) {
+    logger_logError('Process Email Error', error);
+    throw error;
+  }
 };
 const processCustomerSupportWorkflow = async () => {
   try {
-    // Check if workflow is properly configured
     if (!validateWorkflowConfig('CUSTOMER_SUPPORT')) {
-      logger_logError('Customer Support Workflow', 'Required integrations not configured');
       return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().updateCard(createIntegrationSettingsCard())).setNotification(CardService.newNotification().setText('Please configure OpenAI and at least one task platform').setType(CardService.NotificationType.WARNING)).build();
     }
     const message = getCurrentMessage();
     if (!message) {
       return createErrorCard(constants_CONFIG.ERROR_MESSAGES.NO_EMAIL_SELECTED);
     }
-    const metadata = getMessageMetadata(message);
-    logger_logInfo('Customer Support Workflow', 'Starting email analysis');
-    try {
-      const analysis = await openai_analyzeEmail(metadata.subject, metadata.body);
-      logger_logInfo('Customer Support Workflow', JSON.stringify(analysis));
-      if (!analysis || !analysis.analysis) {
-        logger_logError('Customer Support Workflow', 'Invalid analysis response');
-        return createErrorCard(constants_CONFIG.ERROR_MESSAGES.ANALYSIS_FAILED);
-      }
-
-      // Show analysis results and platform selection
-      return createWorkflowResultCard(analysis, metadata);
-    } catch (error) {
-      if (error.message.startsWith('Email skipped:')) {
-        return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText(error.message).setType(CardService.NotificationType.INFO)).build();
-      }
-      throw error;
+    const thread = message.getThread();
+    const result = await customer_support_processEmail(message, thread);
+    if (!result.success) {
+      return createErrorCard(result.reason);
     }
+    return createWorkflowResultCard(result.analysis, getMessageMetadata(message));
   } catch (error) {
-    logger_logError('Customer Support Workflow', error);
+    logger_logError('Customer Support Workflow Error', error);
     return createErrorCard(error.message);
-  }
-};
-const customer_support_createWorkflowTask = async (platform, params) => {
-  try {
-    logger_logInfo('Task Creation', `Creating task in ${platform}`);
-
-    // Verify platform is configured
-    if (!validateIntegrationConfig(platform)) {
-      throw new Error(`${platform} is not properly configured. Please check settings.`);
-    }
-
-    // Parse metadata and technical details
-    let metadata;
-    let technicalDetails;
-    try {
-      metadata = params.metadata ? JSON.parse(params.metadata) : {};
-      technicalDetails = params.technicalDetails ? JSON.parse(params.technicalDetails) : null;
-    } catch (error) {
-      logger_logError('Parse Error', error);
-      metadata = {};
-      technicalDetails = null;
-    }
-    const taskParams = {
-      title: params.title || 'Untitled Task',
-      description: params.description || 'No description provided',
-      priority: params.priority || 'Medium',
-      category: params.category || 'Support',
-      metadata,
-      technicalDetails
-    };
-    let result;
-    switch (platform.toLowerCase()) {
-      case 'notion':
-        result = await createNotionTask(taskParams);
-        break;
-      case 'jira':
-        result = await createJiraIssue(taskParams);
-        break;
-      case 'slack':
-        result = await sendSlackNotification({
-          ...taskParams,
-          taskUrl: null
-        });
-        break;
-      default:
-        throw new Error(`Invalid platform: ${platform}`);
-    }
-    if (!result || platform !== 'slack' && !result.id) {
-      throw new Error(`Failed to create task in ${platform}`);
-    }
-
-    // Only send Slack notification if primary task creation succeeded
-    if (platform !== 'slack' && validateIntegrationConfig('slack')) {
-      try {
-        await sendSlackNotification({
-          ...taskParams,
-          taskUrl: result.url,
-          source: platform
-        });
-        logger_logInfo('Slack Notification', `Additional notification sent to Slack for ${platform} task`);
-      } catch (error) {
-        logger_logError('Slack Notification Error', error);
-        // Don't fail the main task creation
-      }
-    }
-    logger_logInfo('Task Creation', `Task created in ${platform}: ${result.id}`);
-
-    // Instead of popping to root, just show notification
-    return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText(`Successfully sent to ${constants_CONFIG.INTEGRATIONS[platform.toUpperCase()].name}`).setType(CardService.NotificationType.SUCCESS)).build();
-  } catch (error) {
-    logger_logError('Create Task Error', error);
-    return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText(error.message).setType(CardService.NotificationType.ERROR)).build();
   }
 };
 ;// CONCATENATED MODULE: ./src/server/ui/handlers.js
 
 
 const createSetupGuideCard = () => {
+  if (triggers_isDiscoveryEnabled()) {
+    const card = CardService.newCardBuilder();
+    card.setHeader(CardService.newCardHeader().setTitle('Auto-Discovery Already Enabled').setImageStyle(CardService.ImageStyle.SQUARE).setImageUrl('https://www.gstatic.com/images/icons/material/system/1x/warning_black_24dp.png'));
+    const warningSection = CardService.newCardSection().addWidget(CardService.newTextParagraph().setText('Auto-discovery is already enabled with hourly checks. ' + 'Please disable it first if you want to change settings.')).addWidget(CardService.newButtonSet().addButton(CardService.newTextButton().setText('Disable Auto-Discovery').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setBackgroundColor('#d93025').setOnClickAction(CardService.newAction().setFunctionName('disableDiscovery'))).addButton(CardService.newTextButton().setText('Back to Home').setOnClickAction(CardService.newAction().setFunctionName('onHomepage'))));
+    return card.addSection(warningSection).build();
+  }
   const card = CardService.newCardBuilder();
   card.setHeader(CardService.newCardHeader().setTitle('Auto-Discovery Setup Guide').setImageStyle(CardService.ImageStyle.SQUARE).setImageUrl('https://www.gstatic.com/images/icons/material/system/1x/help_outline_black_24dp.png'));
-  const guideSection = CardService.newCardSection().setHeader('📋 Required Steps').addWidget(CardService.newTextParagraph().setText('To complete auto-discovery setup, create a Gmail filter:')).addWidget(CardService.newTextParagraph().setText('1. Go to Gmail settings (⚙️) > "See all settings"')).addWidget(CardService.newTextParagraph().setText('2. Go to "Filters and Blocked Addresses" tab')).addWidget(CardService.newTextParagraph().setText('3. Click "Create a new filter"')).addWidget(CardService.newTextParagraph().setText('4. Set your conditions (e.g., from specific domains)')).addWidget(CardService.newTextParagraph().setText('5. Click "Create filter"')).addWidget(CardService.newTextParagraph().setText('6. In the actions:')).addWidget(CardService.newTextParagraph().setText('   • Check "Star it"')).addWidget(CardService.newTextParagraph().setText('   • Check "Apply label" and select "Auto-Discovery"')).addWidget(CardService.newTextParagraph().setText('7. Click "Create filter"')).addWidget(CardService.newDivider()).addWidget(CardService.newTextParagraph().setText('Emails matching your filter will be processed automatically every hour.'));
-  const actionSection = CardService.newCardSection().addWidget(CardService.newTextButton().setText('Create Gmail Filter').setOpenLink(CardService.newOpenLink().setUrl('https://mail.google.com/mail/u/0/#settings/filters'))).addWidget(CardService.newTextButton().setText('Enable Auto-Discovery').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setOnClickAction(CardService.newAction().setFunctionName('enableDiscovery')));
+  const guideSection = CardService.newCardSection().setHeader('📋 Required Steps').addWidget(CardService.newTextParagraph().setText('To complete auto-discovery setup, create a Gmail filter:')).addWidget(CardService.newTextParagraph().setText('1. Go to Gmail settings (⚙️) > "See all settings"')).addWidget(CardService.newTextParagraph().setText('2. Go to "Filters and Blocked Addresses" tab')).addWidget(CardService.newTextParagraph().setText('3. Click "Create a new filter"')).addWidget(CardService.newTextParagraph().setText('4. Set your conditions (e.g., from specific domains)')).addWidget(CardService.newTextParagraph().setText('5. Click "Create filter"')).addWidget(CardService.newTextParagraph().setText('6. In the actions:')).addWidget(CardService.newTextParagraph().setText('   • Check "Star it"')).addWidget(CardService.newTextParagraph().setText('   • Check "Apply label" and select "Auto-Discovery"')).addWidget(CardService.newTextParagraph().setText('7. Click "Create filter"')).addWidget(CardService.newDivider()).addWidget(CardService.newTextParagraph().setText('Emails matching your filter will be processed automatically based on your settings.'));
+  const actionSection = CardService.newCardSection().addWidget(CardService.newTextButton().setText('Create Gmail Filter').setOpenLink(CardService.newOpenLink().setUrl('https://mail.google.com/mail/u/0/#settings/filters'))).addWidget(CardService.newDivider()).addWidget(CardService.newTextButton().setText('Enable Auto-Discovery').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setOnClickAction(CardService.newAction().setFunctionName('enableDiscovery')));
   return card.addSection(guideSection).addSection(actionSection).build();
 };
-const toggleDiscovery = () => {
-  const currentState = triggers_isDiscoveryEnabled();
-  if (!currentState) {
-    // Show guide first when enabling
-    return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().pushCard(createSetupGuideCard())).build();
-  }
-
-  // Handle disabling
-  const success = deleteEmailTrigger();
-  return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().updateCard(createHomeCard())).setNotification(CardService.newNotification().setText(success ? 'Auto-discovery disabled successfully' : 'Failed to disable auto-discovery').setType(success ? CardService.NotificationType.SUCCESS : CardService.NotificationType.ERROR)).build();
-};
+const showSetupGuide = () => CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().pushCard(createSetupGuideCard())).build();
 const enableDiscovery = () => {
   const success = createEmailTrigger();
-  return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().updateCard(createHomeCard())).setNotification(CardService.newNotification().setText(success ? 'Auto-discovery enabled successfully' : 'Failed to enable auto-discovery').setType(success ? CardService.NotificationType.SUCCESS : CardService.NotificationType.ERROR)).build();
+  return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().updateCard(createHomeCard())).setNotification(CardService.newNotification().setText(success ? 'Auto-discovery enabled with hourly checks' : 'Failed to enable auto-discovery').setType(success ? CardService.NotificationType.SUCCESS : CardService.NotificationType.ERROR)).build();
+};
+const disableDiscovery = () => {
+  const success = deleteEmailTrigger();
+  return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().updateCard(createHomeCard())).setNotification(CardService.newNotification().setText(success ? 'Auto-discovery disabled' : 'Failed to disable auto-discovery').setType(success ? CardService.NotificationType.SUCCESS : CardService.NotificationType.ERROR)).build();
 };
 ;// CONCATENATED MODULE: ./src/server/mail.js
 
@@ -1911,6 +1959,7 @@ const createEmailActionsCard = message => {
   return card.setHeader(header).addSection(taskSection).addSection(actionSection).build();
 };
 const createAnalysisResultCard = analysis => {
+  var _analysis$emailMetada;
   const card = CardService.newCardBuilder();
 
   // Header
@@ -1929,19 +1978,18 @@ const createAnalysisResultCard = analysis => {
   const stepsSection = CardService.newCardSection().setHeader('📝 Next Steps').addWidget(CardService.newTextParagraph().setText(analysis.nextSteps.map((step, index) => `${index + 1}. ${step.step}\n   Assignee: ${step.assignee} (~${step.timeEstimate})`).join('\n\n')));
 
   // Action buttons
-  const configuredPlatforms = getConfiguredPlatforms('CUSTOMER_SUPPORT');
+  const platformsToUse = ((_analysis$emailMetada = analysis.emailMetadata.platforms) === null || _analysis$emailMetada === void 0 ? void 0 : _analysis$emailMetada.map(p => p.toLowerCase())) || getConfiguredPlatforms('CUSTOMER_SUPPORT');
   const buttonSection = CardService.newCardSection().setHeader('Available Actions');
-  if (configuredPlatforms.length === 0) {
+  if (platformsToUse.length === 0) {
     buttonSection.addWidget(CardService.newTextParagraph().setText('⚠️ No task platforms configured. Please configure at least one platform in settings.')).addWidget(CardService.newTextButton().setText('Go to Settings').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setOnClickAction(CardService.newAction().setFunctionName('showIntegrationSettings')));
   } else {
     // Add button for each configured platform
-    configuredPlatforms.forEach(platform => {
+    platformsToUse.forEach(platform => {
       var _getCurrentMessage, _getCurrentMessage2;
+      // Skip Slack as it's for notifications only
+      if (platform.toLowerCase() === 'slack') return;
       let buttonText;
       switch (platform.toLowerCase()) {
-        case 'slack':
-          buttonText = 'Send to Slack';
-          break;
         case 'notion':
           buttonText = 'Create in Notion';
           break;
@@ -2019,7 +2067,7 @@ const sendmail = () => {
 const handleIncomingEmail = async e => {
   try {
     if (!isDiscoveryEnabled()) {
-      return; // Discovery is disabled
+      return;
     }
     const thread = GmailApp.getThreadById(e.threadId);
     const message = thread.getMessages()[thread.getMessageCount() - 1];
@@ -2030,37 +2078,26 @@ const handleIncomingEmail = async e => {
       return;
     }
     logInfo('Auto-Discovery', `Analyzing new email: ${message.getSubject()}`);
-    const analysis = await analyzeEmail(message.getSubject(), message.getPlainBody());
-
-    // If analysis indicates high priority or urgent matter, create tasks automatically
-    if (analysis.emailMetadata.priority === 'High' || analysis.emailMetadata.urgency === 'Immediate') {
-      const configuredPlatforms = getConfiguredPlatforms('CUSTOMER_SUPPORT');
-
-      // Use Promise.all instead of for...of
-      await Promise.all(configuredPlatforms.map(async platform => {
-        try {
-          const taskMetadata = {
-            emailId: message.getId(),
-            threadId: thread.getId(),
-            sentiment: analysis.analysis.sentiment || 'neutral',
-            responseNeeded: analysis.emailMetadata.responseNeeded || false
-          };
-          await createWorkflowTask(platform, {
-            title: analysis.analysis.summary || 'Untitled Task',
-            description: analysis.analysis.details || 'No description provided',
-            priority: analysis.emailMetadata.priority || 'Medium',
-            category: analysis.emailMetadata.category || 'Support',
-            metadata: JSON.stringify(taskMetadata),
-            technicalDetails: JSON.stringify(analysis.technicalDetails || null)
-          });
-          logInfo('Auto-Discovery', `Created ${platform} task for urgent email`);
-        } catch (error) {
-          logError('Auto-Discovery Task Creation', error);
-        }
-      }));
+    const result = await processEmail(message, thread);
+    if (result.success) {
+      logInfo('Auto-Discovery', 'Successfully processed incoming email');
     }
   } catch (error) {
     logError('Auto-Discovery Error', error);
+  }
+};
+
+// Helper function to ensure labels exist
+const ensureLabel = labelName => {
+  try {
+    let label = GmailApp.getUserLabelByName(labelName);
+    if (!label) {
+      label = GmailApp.createLabel(labelName);
+    }
+    return label;
+  } catch (error) {
+    logger_logError('Create Label Error', error);
+    return null;
   }
 };
 const processNewEmails = async () => {
@@ -2068,16 +2105,10 @@ const processNewEmails = async () => {
     if (!triggers_isDiscoveryEnabled()) {
       return;
     }
-
-    // Search for starred emails with our discovery label
     const threads = GmailApp.search(`is:starred label:${constants_CONFIG.LABELS.DISCOVERY}`);
     logger_logInfo('Auto-Discovery', `Found ${threads.length} threads to process`);
-
-    // Process all threads in parallel
     await Promise.all(threads.map(async thread => {
       const messages = thread.getMessages();
-
-      // Process all messages in parallel
       await Promise.all(messages.map(async message => {
         if (!message.isStarred()) {
           return;
@@ -2088,38 +2119,21 @@ const processNewEmails = async () => {
           if (message.getFrom().includes(userDomain)) {
             return;
           }
-          logger_logInfo('Auto-Discovery', `Processing email: ${message.getSubject()}`);
-          const analysis = await openai_analyzeEmail(message.getSubject(), message.getPlainBody());
+          const result = await customer_support_processEmail(message, thread);
 
-          // If analysis indicates high priority or urgent matter, create tasks automatically
-          if (analysis.emailMetadata.priority === 'High' || analysis.emailMetadata.urgency === 'Immediate') {
-            const configuredPlatforms = settings_getConfiguredPlatforms('CUSTOMER_SUPPORT');
-            await Promise.all(configuredPlatforms.map(async platform => {
-              try {
-                const taskMetadata = {
-                  emailId: message.getId(),
-                  threadId: thread.getId(),
-                  sentiment: analysis.analysis.sentiment || 'neutral',
-                  responseNeeded: analysis.emailMetadata.responseNeeded || false
-                };
-                await customer_support_createWorkflowTask(platform, {
-                  title: analysis.analysis.summary || 'Untitled Task',
-                  description: analysis.analysis.details || 'No description provided',
-                  priority: analysis.emailMetadata.priority || 'Medium',
-                  category: analysis.emailMetadata.category || 'Support',
-                  metadata: JSON.stringify(taskMetadata),
-                  technicalDetails: JSON.stringify(analysis.technicalDetails || null)
-                });
-                logger_logInfo('Auto-Discovery', `Created ${platform} task for urgent email`);
-              } catch (error) {
-                logger_logError('Auto-Discovery Task Creation', error);
-              }
-            }));
-          }
-
-          // Remove star and add processed label
+          // Always unstar the message as we've processed it
           message.unstar();
-          thread.addLabel(GmailApp.getUserLabelByName(constants_CONFIG.LABELS.PROCESSED));
+          if (result.success) {
+            const processedLabel = ensureLabel(constants_CONFIG.LABELS.PROCESSED);
+            if (processedLabel) {
+              thread.addLabel(processedLabel);
+            }
+          } else {
+            const skippedLabel = ensureLabel(constants_CONFIG.LABELS.SKIPPED);
+            if (skippedLabel) {
+              thread.addLabel(skippedLabel);
+            }
+          }
         } catch (error) {
           logger_logError('Message Processing Error', error);
         }
@@ -2173,7 +2187,7 @@ function createTask(e) {
     platform,
     ...params
   } = e.parameters;
-  return customer_support_createWorkflowTask(platform, params);
+  return createWorkflowTask(platform, params);
 }
 
 // Export all functions
@@ -2189,7 +2203,6 @@ __webpack_require__.g.showIntegrationSettings = showIntegrationSettings;
 __webpack_require__.g.createTask = createTask;
 __webpack_require__.g.handleDeleteIntegration = handleDeleteIntegration;
 __webpack_require__.g.showDeleteConfirmation = showDeleteConfirmation;
-__webpack_require__.g.toggleDiscovery = toggleDiscovery;
 
 // Add settings handlers with correct names
 __webpack_require__.g.onSaveOPENAISettings = e => {
@@ -2217,8 +2230,10 @@ __webpack_require__.g.testJiraSetup = testJiraSetup;
 // Add to global scope
 __webpack_require__.g.processNewEmails = processNewEmails;
 
-// Add to global exports
+// Update globals
+__webpack_require__.g.showSetupGuide = showSetupGuide;
 __webpack_require__.g.enableDiscovery = enableDiscovery;
+__webpack_require__.g.disableDiscovery = disableDiscovery;
 AppLib = __webpack_exports__;
 /******/ })()
 ;

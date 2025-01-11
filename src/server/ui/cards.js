@@ -1,6 +1,6 @@
 import { CONFIG } from '../config/constants';
 import {
-  createHeader, createActionButton, createSection, createKeyValueWidget, createButtonSet, createHeaderSection,
+  createHeader, createActionButton, createSection, createKeyValueWidget, createHeaderSection,
 } from './components';
 import { getCurrentMessage, getMessageMetadata } from '../utils/gmail';
 import { analyzeEmail } from '../integrations/openai';
@@ -22,6 +22,7 @@ export const createErrorCard = (message) => {
 
 export const createHomeCard = () => {
   const card = CardService.newCardBuilder();
+  const isEnabled = isDiscoveryEnabled();
 
   // Add header
   card.setHeader(createHeader('Gmail Task Automation', 'Automate your email workflows', false));
@@ -31,6 +32,31 @@ export const createHomeCard = () => {
   if (settingsSection) {
     card.addSection(settingsSection);
   }
+
+  // Add auto-discovery section
+  const discoverySection = CardService.newCardSection()
+    .setHeader('🔄 Auto-Discovery')
+    .addWidget(CardService.newTextParagraph()
+      .setText('Automatically process new emails based on filters.'));
+
+  if (isEnabled) {
+    discoverySection
+      .addWidget(CardService.newTextButton()
+        .setText('Disable Auto-Discovery')
+        .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+        .setBackgroundColor('#d93025')
+        .setOnClickAction(CardService.newAction().setFunctionName('disableDiscovery')))
+      .addWidget(CardService.newTextParagraph()
+        .setText('Currently checking every hour'));
+  } else {
+    discoverySection
+      .addWidget(CardService.newTextButton()
+        .setText('Enable Auto-Discovery')
+        .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+        .setOnClickAction(CardService.newAction().setFunctionName('showSetupGuide')));
+  }
+
+  card.addSection(discoverySection);
 
   // Add selected email information
   try {
@@ -51,32 +77,13 @@ export const createHomeCard = () => {
     card.addSection(noEmailSection);
   }
 
-  // Main workflow button
+  // Main workflow button - removed Analyze Email button
   const workflowSection = createSection('Quick Actions', [
     createActionButton('📋 Customer Support Workflow', 'handleCustomerSupportWorkflow', {}, 'filled'),
-    createButtonSet([
-      createActionButton('Analyze Email', 'analyzeCurrentEmail'),
-    ]),
-  ]);
-
-  const discoveryEnabled = isDiscoveryEnabled();
-  const discoverySection = createSection('Auto-Discovery', [
-    CardService.newTextParagraph().setText(
-      discoveryEnabled
-        ? '✅ Auto-discovery is enabled. New emails will be analyzed automatically.'
-        : '❌ Auto-discovery is disabled. Enable it to analyze new emails automatically.',
-    ),
-    createActionButton(
-      discoveryEnabled ? 'Disable Auto-Discovery' : 'Enable Auto-Discovery',
-      'toggleDiscovery',
-      {},
-      discoveryEnabled ? 'text' : 'filled',
-    ),
   ]);
 
   return card
     .addSection(workflowSection)
-    .addSection(discoverySection)
     .build();
 };
 
@@ -198,4 +205,103 @@ export const createSettingsCard = () => {
   );
 
   return card.addSection(integrationSection).build();
+};
+
+export const createWorkflowResultCard = (analysis) => {
+  const card = CardService.newCardBuilder();
+
+  // Header
+  const header = CardService.newCardHeader()
+    .setTitle('Analysis Results')
+    .setImageUrl('https://www.gstatic.com/images/icons/material/system/1x/analytics_black_24dp.png');
+  card.setHeader(header);
+
+  // Summary section
+  const summarySection = CardService.newCardSection()
+    .setHeader('📋 Summary')
+    .addWidget(CardService.newTextParagraph().setText(analysis.analysis.summary));
+
+  // Add priority and category
+  summarySection.addWidget(
+    CardService.newKeyValue()
+      .setTopLabel('Priority')
+      .setContent(analysis.emailMetadata.priority)
+      .setIcon(
+        analysis.emailMetadata.priority.toLowerCase() === 'high'
+          ? CardService.Icon.PRIORITY_HIGH
+          : CardService.Icon.PRIORITY_LOW,
+      ),
+  );
+
+  summarySection.addWidget(
+    CardService.newKeyValue()
+      .setTopLabel('Category')
+      .setContent(analysis.emailMetadata.category)
+      .setIcon(CardService.Icon.FOLDER),
+  );
+
+  // Add sentiment if available
+  if (analysis.analysis.sentiment) {
+    summarySection.addWidget(
+      CardService.newKeyValue()
+        .setTopLabel('Sentiment')
+        .setContent(analysis.analysis.sentiment)
+        .setIcon((() => {
+          const sentiment = analysis.analysis.sentiment.toLowerCase();
+          if (sentiment === 'positive') {
+            return CardService.Icon.STAR;
+          }
+          if (sentiment === 'negative') {
+            return CardService.Icon.WARNING;
+          }
+          return CardService.Icon.DESCRIPTION;
+        })()),
+    );
+  }
+
+  card.addSection(summarySection);
+
+  // Details section
+  const detailsSection = CardService.newCardSection()
+    .setHeader('🔍 Details')
+    .addWidget(CardService.newTextParagraph().setText(analysis.analysis.details));
+
+  // Add technical details if available
+  if (analysis.technicalDetails) {
+    const techDetails = [];
+
+    if (analysis.technicalDetails.appVersion) {
+      techDetails.push(`App Version: ${analysis.technicalDetails.appVersion}`);
+    }
+
+    if (analysis.technicalDetails.deviceInfo?.type) {
+      techDetails.push(`Device: ${analysis.technicalDetails.deviceInfo.type}`);
+    }
+
+    if (analysis.technicalDetails.deviceInfo?.osVersion) {
+      techDetails.push(`OS: ${analysis.technicalDetails.deviceInfo.osVersion}`);
+    }
+
+    if (techDetails.length > 0) {
+      detailsSection.addWidget(
+        CardService.newTextParagraph().setText(`\n🔧 Technical Information:\n${techDetails.join('\n')}`),
+      );
+    }
+  }
+
+  card.addSection(detailsSection);
+
+  // Add back to home button
+  const actionSection = CardService.newCardSection()
+    .setHeader('Actions')
+    .addWidget(
+      CardService.newTextButton()
+        .setText('Back to Home')
+        .setTextButtonStyle(CardService.TextButtonStyle.TEXT)
+        .setOnClickAction(CardService.newAction().setFunctionName('onHomepage')),
+    );
+
+  card.addSection(actionSection);
+
+  return card.build();
 };

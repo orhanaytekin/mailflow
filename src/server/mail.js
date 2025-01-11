@@ -2,7 +2,7 @@ import { analyzeEmail } from './integrations/openai';
 import { getConfiguredPlatforms } from './config/settings';
 import { logInfo, logError } from './utils/logger';
 import { isDiscoveryEnabled } from './triggers';
-import { createWorkflowTask } from './workflows/customer-support';
+import { processEmail } from './workflows/customer-support';
 import { CONFIG } from './config/constants';
 
 // Helper functions for email analysis
@@ -360,11 +360,13 @@ const createAnalysisResultCard = (analysis) => {
     );
 
   // Action buttons
-  const configuredPlatforms = getConfiguredPlatforms('CUSTOMER_SUPPORT');
+  const platformsToUse = analysis.emailMetadata.platforms?.map((p) => p.toLowerCase())
+                        || getConfiguredPlatforms('CUSTOMER_SUPPORT');
+
   const buttonSection = CardService.newCardSection()
     .setHeader('Available Actions');
 
-  if (configuredPlatforms.length === 0) {
+  if (platformsToUse.length === 0) {
     buttonSection
       .addWidget(CardService.newTextParagraph()
         .setText('⚠️ No task platforms configured. Please configure at least one platform in settings.'))
@@ -378,12 +380,12 @@ const createAnalysisResultCard = (analysis) => {
       );
   } else {
     // Add button for each configured platform
-    configuredPlatforms.forEach((platform) => {
+    platformsToUse.forEach((platform) => {
+      // Skip Slack as it's for notifications only
+      if (platform.toLowerCase() === 'slack') return;
+
       let buttonText;
       switch (platform.toLowerCase()) {
-        case 'slack':
-          buttonText = 'Send to Slack';
-          break;
         case 'notion':
           buttonText = 'Create in Notion';
           break;
@@ -488,7 +490,7 @@ export const sendmail = () => {
 export const handleIncomingEmail = async (e) => {
   try {
     if (!isDiscoveryEnabled()) {
-      return; // Discovery is disabled
+      return;
     }
 
     const thread = GmailApp.getThreadById(e.threadId);
@@ -502,39 +504,27 @@ export const handleIncomingEmail = async (e) => {
 
     logInfo('Auto-Discovery', `Analyzing new email: ${message.getSubject()}`);
 
-    const analysis = await analyzeEmail(message.getSubject(), message.getPlainBody());
+    const result = await processEmail(message, thread);
 
-    // If analysis indicates high priority or urgent matter, create tasks automatically
-    if (analysis.emailMetadata.priority === 'High' || analysis.emailMetadata.urgency === 'Immediate') {
-      const configuredPlatforms = getConfiguredPlatforms('CUSTOMER_SUPPORT');
-
-      // Use Promise.all instead of for...of
-      await Promise.all(configuredPlatforms.map(async (platform) => {
-        try {
-          const taskMetadata = {
-            emailId: message.getId(),
-            threadId: thread.getId(),
-            sentiment: analysis.analysis.sentiment || 'neutral',
-            responseNeeded: analysis.emailMetadata.responseNeeded || false,
-          };
-
-          await createWorkflowTask(platform, {
-            title: analysis.analysis.summary || 'Untitled Task',
-            description: analysis.analysis.details || 'No description provided',
-            priority: analysis.emailMetadata.priority || 'Medium',
-            category: analysis.emailMetadata.category || 'Support',
-            metadata: JSON.stringify(taskMetadata),
-            technicalDetails: JSON.stringify(analysis.technicalDetails || null),
-          });
-
-          logInfo('Auto-Discovery', `Created ${platform} task for urgent email`);
-        } catch (error) {
-          logError('Auto-Discovery Task Creation', error);
-        }
-      }));
+    if (result.success) {
+      logInfo('Auto-Discovery', 'Successfully processed incoming email');
     }
   } catch (error) {
     logError('Auto-Discovery Error', error);
+  }
+};
+
+// Helper function to ensure labels exist
+const ensureLabel = (labelName) => {
+  try {
+    let label = GmailApp.getUserLabelByName(labelName);
+    if (!label) {
+      label = GmailApp.createLabel(labelName);
+    }
+    return label;
+  } catch (error) {
+    logError('Create Label Error', error);
+    return null;
   }
 };
 
@@ -544,15 +534,12 @@ export const processNewEmails = async () => {
       return;
     }
 
-    // Search for starred emails with our discovery label
     const threads = GmailApp.search(`is:starred label:${CONFIG.LABELS.DISCOVERY}`);
     logInfo('Auto-Discovery', `Found ${threads.length} threads to process`);
 
-    // Process all threads in parallel
     await Promise.all(threads.map(async (thread) => {
       const messages = thread.getMessages();
 
-      // Process all messages in parallel
       await Promise.all(messages.map(async (message) => {
         if (!message.isStarred()) {
           return;
@@ -565,42 +552,22 @@ export const processNewEmails = async () => {
             return;
           }
 
-          logInfo('Auto-Discovery', `Processing email: ${message.getSubject()}`);
+          const result = await processEmail(message, thread);
 
-          const analysis = await analyzeEmail(message.getSubject(), message.getPlainBody());
-
-          // If analysis indicates high priority or urgent matter, create tasks automatically
-          if (analysis.emailMetadata.priority === 'High' || analysis.emailMetadata.urgency === 'Immediate') {
-            const configuredPlatforms = getConfiguredPlatforms('CUSTOMER_SUPPORT');
-
-            await Promise.all(configuredPlatforms.map(async (platform) => {
-              try {
-                const taskMetadata = {
-                  emailId: message.getId(),
-                  threadId: thread.getId(),
-                  sentiment: analysis.analysis.sentiment || 'neutral',
-                  responseNeeded: analysis.emailMetadata.responseNeeded || false,
-                };
-
-                await createWorkflowTask(platform, {
-                  title: analysis.analysis.summary || 'Untitled Task',
-                  description: analysis.analysis.details || 'No description provided',
-                  priority: analysis.emailMetadata.priority || 'Medium',
-                  category: analysis.emailMetadata.category || 'Support',
-                  metadata: JSON.stringify(taskMetadata),
-                  technicalDetails: JSON.stringify(analysis.technicalDetails || null),
-                });
-
-                logInfo('Auto-Discovery', `Created ${platform} task for urgent email`);
-              } catch (error) {
-                logError('Auto-Discovery Task Creation', error);
-              }
-            }));
-          }
-
-          // Remove star and add processed label
+          // Always unstar the message as we've processed it
           message.unstar();
-          thread.addLabel(GmailApp.getUserLabelByName(CONFIG.LABELS.PROCESSED));
+
+          if (result.success) {
+            const processedLabel = ensureLabel(CONFIG.LABELS.PROCESSED);
+            if (processedLabel) {
+              thread.addLabel(processedLabel);
+            }
+          } else {
+            const skippedLabel = ensureLabel(CONFIG.LABELS.SKIPPED);
+            if (skippedLabel) {
+              thread.addLabel(skippedLabel);
+            }
+          }
         } catch (error) {
           logError('Message Processing Error', error);
         }

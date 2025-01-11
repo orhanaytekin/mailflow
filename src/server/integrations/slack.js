@@ -2,128 +2,79 @@ import { getProperty } from '../config/settings';
 import { CONFIG } from '../config/constants';
 import { logError, logInfo } from '../utils/logger';
 
-const createNotionNotification = (params, taskUrl) => ({
-  blocks: [
-    {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `📝 *New Notion Task Created*\n${params.title}`,
-      },
-    },
-    {
-      type: 'section',
-      fields: [
-        {
-          type: 'mrkdwn',
-          text: `*Category:*\n${params.category}`,
-        },
-        {
-          type: 'mrkdwn',
-          text: `*Priority:*\n${params.priority}`,
-        },
-      ],
-    },
-    {
-      type: 'section',
-      fields: [
-        ...(params.technicalDetails?.userIdentifiers?.userId ? [{
-          type: 'mrkdwn',
-          text: `*User ID:*\n${params.technicalDetails.userIdentifiers.userId}`,
-        }] : []),
-        ...(params.technicalDetails?.userIdentifiers?.aid ? [{
-          type: 'mrkdwn',
-          text: `*AID:*\n${params.technicalDetails.userIdentifiers.aid}`,
-        }] : []),
-      ],
-    },
-    ...(taskUrl ? [{
-      type: 'actions',
-      elements: [
-        {
-          type: 'button',
-          text: {
-            type: 'plain_text',
-            text: 'View in Notion',
-            emoji: true,
-          },
-          url: taskUrl,
-        },
-      ],
-    }] : []),
-  ],
-});
+const getCategoryEmoji = (category) => {
+  switch (category?.toLowerCase()) {
+    case 'bug':
+      return '🐛';
+    case 'feature request':
+      return '✨';
+    case 'enhancement':
+      return '🚀';
+    case 'question':
+      return '❓';
+    case 'support':
+      return '🆘';
+    default:
+      return '📝';
+  }
+};
 
-const createJiraNotification = (params, taskUrl) => ({
-  blocks: [
-    {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `🎯 *New Jira Issue Created*\n${params.title}`,
-      },
-    },
-    {
-      type: 'section',
-      fields: [
-        {
-          type: 'mrkdwn',
-          text: `*Category:*\n${params.category}`,
-        },
-        {
-          type: 'mrkdwn',
-          text: `*Priority:*\n${params.priority}`,
-        },
-      ],
-    },
-    {
-      type: 'section',
-      fields: [
-        ...(params.technicalDetails?.userIdentifiers?.userId ? [{
-          type: 'mrkdwn',
-          text: `*User ID:*\n${params.technicalDetails.userIdentifiers.userId}`,
-        }] : []),
-        ...(params.technicalDetails?.userIdentifiers?.aid ? [{
-          type: 'mrkdwn',
-          text: `*AID:*\n${params.technicalDetails.userIdentifiers.aid}`,
-        }] : []),
-        ...(params.technicalDetails?.appVersion ? [{
-          type: 'mrkdwn',
-          text: `*App Version:*\n${params.technicalDetails.appVersion}`,
-        }] : []),
-      ],
-    },
-    ...(taskUrl ? [{
-      type: 'actions',
-      elements: [
-        {
-          type: 'button',
-          text: {
-            type: 'plain_text',
-            text: 'View in Jira',
-            emoji: true,
-          },
-          url: taskUrl,
-        },
-      ],
-    }] : []),
-  ],
-});
+const getPriorityEmoji = (priority) => {
+  switch (priority?.toLowerCase()) {
+    case 'high':
+      return '🚨';
+    case 'medium':
+      return '🟡';
+    case 'low':
+      return '🟢';
+    default:
+      return '⚪';
+  }
+};
 
-const createDefaultNotification = (params) => ({
-  blocks: [
+const formatTaskLinks = (taskUrls) => {
+  if (!taskUrls || Object.keys(taskUrls).length === 0) return null;
+
+  const links = Object.entries(taskUrls).map(([platform, url]) => {
+    let emoji; let
+      text;
+    switch (platform.toLowerCase()) {
+      case 'jira':
+        emoji = '🎯';
+        text = 'View Jira Issue';
+        break;
+      case 'notion':
+        emoji = '📘';
+        text = 'View Notion Page';
+        break;
+      default:
+        emoji = '🔗';
+        text = `View in ${platform}`;
+    }
+    return `${emoji} <${url}|${text}>`;
+  });
+
+  return links.join('\n');
+};
+
+const formatSlackMessage = (params) => {
+  const categoryEmoji = getCategoryEmoji(params.category);
+  const priorityEmoji = getPriorityEmoji(params.priority);
+
+  const blocks = [
     {
-      type: 'section',
+      type: 'header',
       text: {
-        type: 'mrkdwn',
-        text: `📧 *New Support Request*\n${params.title}`,
+        type: 'plain_text',
+        text: `${categoryEmoji} New ${params.category || 'Support'}`,
+        emoji: true,
       },
     },
     {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: params.description,
+        text: `*${params.title}*`,
       },
     },
     {
@@ -131,76 +82,76 @@ const createDefaultNotification = (params) => ({
       fields: [
         {
           type: 'mrkdwn',
-          text: `*Category:*\n${params.category}`,
+          text: `*Priority*\n${priorityEmoji} ${params.priority || 'Medium'}`,
         },
         {
           type: 'mrkdwn',
-          text: `*Priority:*\n${params.priority}`,
+          text: `*Category*\n${categoryEmoji} ${params.category || 'Support'}`,
         },
       ],
     },
-    {
+  ];
+
+  // Add description if available (truncate if too long)
+  if (params.description) {
+    const truncatedDescription = params.description.length > 1000
+      ? `${params.description.substring(0, 1000)}...`
+      : params.description;
+
+    blocks.push({
       type: 'section',
-      fields: [
-        ...(params.technicalDetails?.userIdentifiers?.userId ? [{
-          type: 'mrkdwn',
-          text: `*User ID:*\n${params.technicalDetails.userIdentifiers.userId}`,
-        }] : []),
-        ...(params.technicalDetails?.userIdentifiers?.aid ? [{
-          type: 'mrkdwn',
-          text: `*AID:*\n${params.technicalDetails.userIdentifiers.aid}`,
-        }] : []),
-        ...(params.technicalDetails?.appVersion ? [{
-          type: 'mrkdwn',
-          text: `*App Version:*\n${params.technicalDetails.appVersion}`,
-        }] : []),
-      ],
-    },
-  ],
-});
+      text: {
+        type: 'mrkdwn',
+        text: `*Details*\n${truncatedDescription}`,
+      },
+    });
+  }
+
+  // Add task URLs if available
+  if (params.taskUrls) {
+    const taskLinks = formatTaskLinks(params.taskUrls);
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: taskLinks.split('\n').join('\n\n'),
+      },
+    });
+  }
+
+  return blocks;
+};
 
 export const sendSlackNotification = async (params) => {
   try {
     const webhookUrl = getProperty(CONFIG.PROPERTIES.SLACK_WEBHOOK_URL);
     if (!webhookUrl) {
-      throw new Error('Slack webhook URL not configured');
+      throw new Error(CONFIG.ERROR_MESSAGES.MISSING_INTEGRATION('Slack'));
     }
 
-    // Choose template based on source
-    let payload;
-    if (params.source === 'notion' && params.taskUrl) {
-      payload = createNotionNotification(params, params.taskUrl);
-    } else if (params.source === 'jira' && params.taskUrl) {
-      payload = createJiraNotification(params, params.taskUrl);
-    } else {
-      payload = createDefaultNotification(params);
-    }
-
-    logInfo('Slack Payload', payload);
+    const blocks = formatSlackMessage(params);
 
     const response = await UrlFetchApp.fetch(webhookUrl, {
       method: 'post',
-      contentType: 'application/json',
-      payload: JSON.stringify(payload),
+      headers: {
+        'Content-Type': 'application/json',
+      },
       muteHttpExceptions: true,
+      payload: JSON.stringify({ blocks }),
     });
 
     if (response.getResponseCode() !== 200) {
       throw new Error(`Slack API Error: ${response.getContentText()}`);
     }
 
-    logInfo('Slack Notification Sent', {
-      source: params.source || 'direct',
-      hasTaskUrl: !!params.taskUrl,
+    logInfo('Slack Notification', {
+      source: params.source,
+      hasTaskUrls: !!params.taskUrls,
     });
 
-    // Return a proper result object
-    return {
-      id: new Date().getTime().toString(), // Use timestamp as ID
-      url: null, // Slack doesn't have a direct URL to the message
-    };
+    return true;
   } catch (error) {
     logError('Send Slack Notification Error', error);
-    throw error;
+    return false;
   }
 };

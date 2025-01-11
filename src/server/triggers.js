@@ -26,10 +26,9 @@ export const deleteEmailTrigger = () => {
 
 export const createEmailTrigger = () => {
   try {
-    // Delete existing triggers first
     deleteEmailTrigger();
 
-    // Create a time-based trigger that runs every hour
+    // Create time-based trigger that runs every hour
     ScriptApp.newTrigger(TRIGGER_FUNCTION_NAME)
       .timeBased()
       .everyHours(1)
@@ -42,7 +41,7 @@ export const createEmailTrigger = () => {
     }
 
     setProperty(DISCOVERY_ENABLED_KEY, 'true');
-    logInfo('Triggers', 'Email discovery trigger created');
+    logInfo('Triggers', 'Hourly email discovery trigger created');
     return true;
   } catch (error) {
     logError('Create Trigger Error', error);

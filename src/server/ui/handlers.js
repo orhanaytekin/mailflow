@@ -2,6 +2,32 @@ import { isDiscoveryEnabled, createEmailTrigger, deleteEmailTrigger } from '../t
 import { createHomeCard } from './cards';
 
 const createSetupGuideCard = () => {
+  if (isDiscoveryEnabled()) {
+    const card = CardService.newCardBuilder();
+    card.setHeader(CardService.newCardHeader()
+      .setTitle('Auto-Discovery Already Enabled')
+      .setImageStyle(CardService.ImageStyle.SQUARE)
+      .setImageUrl('https://www.gstatic.com/images/icons/material/system/1x/warning_black_24dp.png'));
+
+    const warningSection = CardService.newCardSection()
+      .addWidget(CardService.newTextParagraph()
+        .setText(
+          'Auto-discovery is already enabled with hourly checks. '
+          + 'Please disable it first if you want to change settings.',
+        ))
+      .addWidget(CardService.newButtonSet()
+        .addButton(CardService.newTextButton()
+          .setText('Disable Auto-Discovery')
+          .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+          .setBackgroundColor('#d93025')
+          .setOnClickAction(CardService.newAction().setFunctionName('disableDiscovery')))
+        .addButton(CardService.newTextButton()
+          .setText('Back to Home')
+          .setOnClickAction(CardService.newAction().setFunctionName('onHomepage'))));
+
+    return card.addSection(warningSection).build();
+  }
+
   const card = CardService.newCardBuilder();
 
   card.setHeader(CardService.newCardHeader()
@@ -33,13 +59,14 @@ const createSetupGuideCard = () => {
       .setText('7. Click "Create filter"'))
     .addWidget(CardService.newDivider())
     .addWidget(CardService.newTextParagraph()
-      .setText('Emails matching your filter will be processed automatically every hour.'));
+      .setText('Emails matching your filter will be processed automatically based on your settings.'));
 
   const actionSection = CardService.newCardSection()
     .addWidget(CardService.newTextButton()
       .setText('Create Gmail Filter')
       .setOpenLink(CardService.newOpenLink()
         .setUrl('https://mail.google.com/mail/u/0/#settings/filters')))
+    .addWidget(CardService.newDivider())
     .addWidget(CardService.newTextButton()
       .setText('Enable Auto-Discovery')
       .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
@@ -51,32 +78,26 @@ const createSetupGuideCard = () => {
     .build();
 };
 
-export const toggleDiscovery = () => {
-  const currentState = isDiscoveryEnabled();
-
-  if (!currentState) {
-    // Show guide first when enabling
-    return CardService.newActionResponseBuilder()
-      .setNavigation(CardService.newNavigation().pushCard(createSetupGuideCard()))
-      .build();
-  }
-
-  // Handle disabling
-  const success = deleteEmailTrigger();
-  return CardService.newActionResponseBuilder()
-    .setNavigation(CardService.newNavigation().updateCard(createHomeCard()))
-    .setNotification(CardService.newNotification()
-      .setText(success ? 'Auto-discovery disabled successfully' : 'Failed to disable auto-discovery')
-      .setType(success ? CardService.NotificationType.SUCCESS : CardService.NotificationType.ERROR))
-    .build();
-};
+export const showSetupGuide = () => CardService.newActionResponseBuilder()
+  .setNavigation(CardService.newNavigation().pushCard(createSetupGuideCard()))
+  .build();
 
 export const enableDiscovery = () => {
   const success = createEmailTrigger();
   return CardService.newActionResponseBuilder()
     .setNavigation(CardService.newNavigation().updateCard(createHomeCard()))
     .setNotification(CardService.newNotification()
-      .setText(success ? 'Auto-discovery enabled successfully' : 'Failed to enable auto-discovery')
+      .setText(success ? 'Auto-discovery enabled with hourly checks' : 'Failed to enable auto-discovery')
+      .setType(success ? CardService.NotificationType.SUCCESS : CardService.NotificationType.ERROR))
+    .build();
+};
+
+export const disableDiscovery = () => {
+  const success = deleteEmailTrigger();
+  return CardService.newActionResponseBuilder()
+    .setNavigation(CardService.newNavigation().updateCard(createHomeCard()))
+    .setNotification(CardService.newNotification()
+      .setText(success ? 'Auto-discovery disabled' : 'Failed to disable auto-discovery')
       .setType(success ? CardService.NotificationType.SUCCESS : CardService.NotificationType.ERROR))
     .build();
 };
