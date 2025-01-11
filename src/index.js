@@ -1,5 +1,5 @@
 import {
-  createHomeCard, createAnalysisCard, createSettingsCard, createErrorCard,
+  createHomeCard, createAnalysisCard, createSettingsCard,
 } from './server/ui/cards';
 import {
   createIntegrationSettingsCard,
@@ -7,14 +7,12 @@ import {
   handleSaveNotionSettings,
   handleSaveJiraSettings,
   handleSaveSlackSettings,
-  createDeleteConfirmationCard,
 } from './server/ui/settings';
-import { processCustomerSupportWorkflow } from './server/workflows/customer-support';
-import { setProperty, deleteProperties } from './server/config/settings';
+import { handleDeleteIntegration, showDeleteConfirmation } from './server/ui/settings-handlers';
+import { processCustomerSupportWorkflow, createWorkflowTask } from './server/workflows/customer-support';
+import { setProperty } from './server/config/settings';
 import { CONFIG } from './server/config/constants';
-import { logInfo, logError } from './server/utils/logger';
-import { createNotionTask } from './server/integrations/notion';
-import { createJiraIssue } from './server/integrations/jira';
+import { logInfo } from './server/utils/logger';
 
 // Declare functions in global scope
 function onHomepage() {
@@ -49,50 +47,8 @@ function showIntegrationSettings() {
 }
 
 function createTask(e) {
-  logInfo('Task Creation', 'Creating task');
-  const { platform } = e.parameters;
-
-  try {
-    switch (platform) {
-      case 'notion':
-        return createNotionTask(e.parameters);
-      case 'jira':
-        return createJiraIssue(e.parameters);
-      default:
-        throw new Error('Invalid platform selected');
-    }
-  } catch (error) {
-    logError('Create Task Error', error);
-    return createErrorCard(error.message);
-  }
-}
-
-function showDeleteConfirmation(e) {
-  logInfo('Settings', 'Showing delete confirmation');
-  return createDeleteConfirmationCard(e);
-}
-
-function handleDeleteIntegration(e) {
-  const { integration } = e.parameters;
-  logInfo('Settings', `Deleting ${integration} integration`);
-
-  try {
-    // Delete all properties for this integration
-    const propertiesToDelete = CONFIG.INTEGRATIONS[integration].fields
-      .map((field) => CONFIG.PROPERTIES[field.key]);
-
-    deleteProperties(propertiesToDelete);
-
-    return CardService.newActionResponseBuilder()
-      .setNavigation(CardService.newNavigation().updateCard(createIntegrationSettingsCard()))
-      .setNotification(CardService.newNotification()
-        .setText(`${CONFIG.INTEGRATIONS[integration].name} integration deleted successfully`)
-        .setType(CardService.NotificationType.INFO))
-      .build();
-  } catch (error) {
-    logError('Delete Integration Error', error);
-    return createErrorCard('Failed to delete integration settings');
-  }
+  const { platform, ...params } = e.parameters;
+  return createWorkflowTask(platform, params);
 }
 
 // Export all functions
@@ -104,6 +60,8 @@ export {
   showSettingsCard,
   showIntegrationSettings,
   createTask,
+  handleDeleteIntegration,
+  showDeleteConfirmation,
 };
 
 // Make functions available globally
@@ -113,22 +71,29 @@ global.analyzeCurrentEmail = analyzeCurrentEmail;
 global.handleCustomerSupportWorkflow = handleCustomerSupportWorkflow;
 global.showSettingsCard = showSettingsCard;
 global.showIntegrationSettings = showIntegrationSettings;
-global.onSaveOpenAISettings = (e) => {
+global.createTask = createTask;
+global.handleDeleteIntegration = handleDeleteIntegration;
+
+// Add settings handlers with correct names
+global.onSaveOPENAISettings = (e) => {
   logInfo('Settings', 'Saving OpenAI settings');
   return handleSaveOpenAISettings(e);
 };
-global.onSaveNotionSettings = (e) => {
+
+global.onSaveNOTIONSettings = (e) => {
   logInfo('Settings', 'Saving Notion settings');
   return handleSaveNotionSettings(e);
 };
-global.createTask = createTask;
-global.onSaveJiraSettings = (e) => {
+
+global.onSaveJIRASettings = (e) => {
   logInfo('Settings', 'Saving Jira settings');
   return handleSaveJiraSettings(e);
 };
-global.onSaveSlackSettings = (e) => {
+
+global.onSaveSLACKSettings = (e) => {
   logInfo('Settings', 'Saving Slack settings');
   return handleSaveSlackSettings(e);
 };
+
+// Add to global exports
 global.showDeleteConfirmation = showDeleteConfirmation;
-global.handleDeleteIntegration = handleDeleteIntegration;

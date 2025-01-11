@@ -15,8 +15,9 @@ export const CONFIG = {
       id: 'CUSTOMER_SUPPORT',
       name: 'Customer Support',
       description: 'Handle customer support requests and inquiries',
+      requiredIntegrations: ['openai'],
+      taskPlatforms: ['notion', 'jira', 'slack'],
       defaultPlatform: 'notion',
-      requiredIntegrations: ['openai', 'notion'],
     },
   },
 
@@ -52,6 +53,8 @@ export const CONFIG = {
     MISSING_INTEGRATION: (integration) => `${integration} integration not configured. Please configure it in settings.`,
     ANALYSIS_FAILED: 'Failed to analyze email. Please try again.',
     TASK_CREATION_FAILED: 'Failed to create task. Please try again.',
+    DELETE_FAILED: 'Failed to delete integration settings. Please try again.',
+    INVALID_INTEGRATION: 'Invalid integration specified.',
   },
 
   INTEGRATIONS: {

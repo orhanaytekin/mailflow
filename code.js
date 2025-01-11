@@ -11,19 +11,21 @@ function showSettingsCard() {
 }
 function showIntegrationSettings() {
 }
-function onSaveOpenAISettings(e) {
-}
-function onSaveNotionSettings(e) {
-}
 function createTask() {
 }
-function onSaveJiraSettings(e) {
-}
-function onSaveSlackSettings(e) {
-}
-function showDeleteConfirmation() {
-}
 function handleDeleteIntegration() {
+}
+// Add settings handlers with correct names
+function onSaveOPENAISettings(e) {
+}
+function onSaveNOTIONSettings(e) {
+}
+function onSaveJIRASettings(e) {
+}
+function onSaveSLACKSettings(e) {
+}
+// Add to global exports
+function showDeleteConfirmation() {
 }var AppLib;
 /******/ (() => { // webpackBootstrap
 /******/ 	"use strict";
@@ -81,8 +83,10 @@ __webpack_require__.d(__webpack_exports__, {
   analyzeCurrentEmail: () => (/* binding */ analyzeCurrentEmail),
   createTask: () => (/* binding */ createTask),
   handleCustomerSupportWorkflow: () => (/* binding */ handleCustomerSupportWorkflow),
+  handleDeleteIntegration: () => (/* reexport */ handleDeleteIntegration),
   handleGmailTrigger: () => (/* binding */ handleGmailTrigger),
   onHomepage: () => (/* binding */ onHomepage),
+  showDeleteConfirmation: () => (/* reexport */ showDeleteConfirmation),
   showIntegrationSettings: () => (/* binding */ showIntegrationSettings),
   showSettingsCard: () => (/* binding */ showSettingsCard)
 });
@@ -103,8 +107,9 @@ const constants_CONFIG = {
       id: 'CUSTOMER_SUPPORT',
       name: 'Customer Support',
       description: 'Handle customer support requests and inquiries',
-      defaultPlatform: 'notion',
-      requiredIntegrations: ['openai', 'notion']
+      requiredIntegrations: ['openai'],
+      taskPlatforms: ['notion', 'jira', 'slack'],
+      defaultPlatform: 'notion'
     }
   },
   UI: {
@@ -136,7 +141,9 @@ const constants_CONFIG = {
     NO_EMAIL_SELECTED: 'No email selected. Please select an email first.',
     MISSING_INTEGRATION: integration => `${integration} integration not configured. Please configure it in settings.`,
     ANALYSIS_FAILED: 'Failed to analyze email. Please try again.',
-    TASK_CREATION_FAILED: 'Failed to create task. Please try again.'
+    TASK_CREATION_FAILED: 'Failed to create task. Please try again.',
+    DELETE_FAILED: 'Failed to delete integration settings. Please try again.',
+    INVALID_INTEGRATION: 'Invalid integration specified.'
   },
   INTEGRATIONS: {
     OPENAI: {
@@ -186,7 +193,7 @@ const constants_CONFIG = {
 };
 ;// CONCATENATED MODULE: ./src/server/ui/components.js
 
-const createHeader = (title, subtitle = null) => {
+const components_createHeader = (title, subtitle = null) => {
   const header = CardService.newCardHeader().setTitle(title).setImageUrl(constants_CONFIG.UI.ICONS.HOME);
   if (subtitle) {
     header.setSubtitle(subtitle);
@@ -204,7 +211,7 @@ const createActionButton = (text, functionName, parameters = {}, style = 'defaul
   }
   return button;
 };
-const createSection = (title = null, widgets = []) => {
+const components_createSection = (title = null, widgets = []) => {
   const section = CardService.newCardSection();
   if (title) {
     section.setHeader(title);
@@ -223,38 +230,6 @@ const createButtonSet = buttons => {
   const buttonSet = CardService.newButtonSet();
   buttons.forEach(button => buttonSet.addButton(button));
   return buttonSet;
-};
-;// CONCATENATED MODULE: ./src/server/config/settings.js
-
-const settings_getProperty = key => PropertiesService.getUserProperties().getProperty(key);
-const setProperty = (key, value) => {
-  PropertiesService.getUserProperties().setProperty(key, value);
-};
-const deleteProperty = key => {
-  PropertiesService.getUserProperties().deleteProperty(key);
-};
-const deleteProperties = keys => {
-  const userProperties = PropertiesService.getUserProperties();
-  userProperties.deleteProperties(keys);
-};
-const validateIntegrationConfig = integration => {
-  switch (integration.toLowerCase()) {
-    case 'openai':
-      return !!settings_getProperty(constants_CONFIG.PROPERTIES.OPENAI_API_KEY);
-    case 'notion':
-      return !!settings_getProperty(constants_CONFIG.PROPERTIES.NOTION_API_KEY) && !!settings_getProperty(constants_CONFIG.PROPERTIES.NOTION_DATABASE_ID);
-    case 'jira':
-      return !!settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_DOMAIN) && !!settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_EMAIL) && !!settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_API_TOKEN) && !!settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_PROJECT_KEY);
-    case 'slack':
-      return !!settings_getProperty(constants_CONFIG.PROPERTIES.SLACK_WEBHOOK_URL);
-    default:
-      return false;
-  }
-};
-const validateWorkflowConfig = workflowId => {
-  const workflow = constants_CONFIG.WORKFLOWS[workflowId];
-  if (!workflow) return false;
-  return workflow.requiredIntegrations.every(integration => validateIntegrationConfig(integration));
 };
 ;// CONCATENATED MODULE: ./src/server/utils/logger.js
 // Console statements are intentionally used for Apps Script logging
@@ -287,6 +262,65 @@ const logInfo = (context, message) => {
     message,
     timestamp: new Date().toISOString()
   }));
+};
+;// CONCATENATED MODULE: ./src/server/config/settings.js
+
+
+const settings_getProperty = key => PropertiesService.getUserProperties().getProperty(key);
+const setProperty = (key, value) => {
+  PropertiesService.getUserProperties().setProperty(key, value);
+};
+const deleteProperty = key => {
+  PropertiesService.getUserProperties().deleteProperty(key);
+};
+const deleteProperties = keys => {
+  try {
+    const userProperties = PropertiesService.getUserProperties();
+
+    // Delete properties one by one to handle errors gracefully
+    keys.forEach(key => {
+      try {
+        userProperties.deleteProperty(key);
+        logInfo('Settings', `Deleted property: ${key}`);
+      } catch (error) {
+        logger_logError('Delete Property Error', `Failed to delete ${key}: ${error.message}`);
+      }
+    });
+    return true;
+  } catch (error) {
+    logger_logError('Delete Properties Error', error);
+    return false; // Return false instead of throwing error
+  }
+};
+const validateIntegrationConfig = integration => {
+  switch (integration.toLowerCase()) {
+    case 'openai':
+      return !!settings_getProperty(constants_CONFIG.PROPERTIES.OPENAI_API_KEY);
+    case 'notion':
+      return !!settings_getProperty(constants_CONFIG.PROPERTIES.NOTION_API_KEY) && !!settings_getProperty(constants_CONFIG.PROPERTIES.NOTION_DATABASE_ID);
+    case 'jira':
+      return !!settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_DOMAIN) && !!settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_EMAIL) && !!settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_API_TOKEN) && !!settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_PROJECT_KEY);
+    case 'slack':
+      return !!settings_getProperty(constants_CONFIG.PROPERTIES.SLACK_WEBHOOK_URL);
+    default:
+      return false;
+  }
+};
+const validateWorkflowConfig = workflowId => {
+  const workflow = constants_CONFIG.WORKFLOWS[workflowId];
+  if (!workflow) return false;
+
+  // Check required integrations
+  const hasRequiredIntegrations = workflow.requiredIntegrations.every(integration => validateIntegrationConfig(integration));
+
+  // Check if at least one task platform is configured
+  const hasTaskPlatform = workflow.taskPlatforms.some(platform => validateIntegrationConfig(platform));
+  return hasRequiredIntegrations && hasTaskPlatform;
+};
+const getConfiguredPlatforms = workflowId => {
+  const workflow = constants_CONFIG.WORKFLOWS[workflowId];
+  if (!workflow) return [];
+  return workflow.taskPlatforms.filter(platform => validateIntegrationConfig(platform));
 };
 ;// CONCATENATED MODULE: ./src/server/utils/gmail.js
 
@@ -331,21 +365,68 @@ const addLabel = async (messageId, labelName) => {
 
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
-const MODEL = 'gpt-3.5-turbo';
-const SYSTEM_PROMPT = `You are an AI assistant analyzing customer support emails. 
-Respond with a JSON object in this format:
+const MODEL = 'gpt-4';
+const SYSTEM_PROMPT = `You are an AI assistant analyzing customer support emails. First determine if the email is 
+relevant to customer support or app-related issues. If the email is empty, spam, or completely unrelated, respond with:
 {
+  "relevant": false,
+  "reason": "Brief explanation why this email is not relevant"
+}
+
+For relevant emails, carefully extract ALL technical information, especially:
+- Device information (iPhone model, Android device, etc.)
+- OS versions (iOS version, Android version)
+- App version numbers
+- Any identifiers (AID, User ID, Device ID)
+- Technical context from email signatures
+
+Format response as a structured JSON with "relevant": true:
+{
+  "relevant": true,
   "analysis": {
-    "summary": "Brief summary of the email",
-    "details": "Detailed analysis",
+    "summary": "Brief, clear summary focusing on the main request/issue",
+    "details": "Detailed analysis including any context provided",
     "sentiment": "positive|neutral|negative"
   },
   "emailMetadata": {
     "priority": "High|Medium|Low",
     "category": "Bug|Feature Request|Question|Support",
     "responseNeeded": true|false
+  },
+  "technicalDetails": {
+    "appVersion": "string or null",
+    "deviceInfo": {
+      "type": "string or null (e.g., 'iPhone', 'Android')",
+      "model": "string or null (e.g., 'iPhone 11', 'Pixel 6')",
+      "osVersion": "string or null (e.g., 'iOS 17.6.1')",
+      "deviceId": "string or null"
+    },
+    "userIdentifiers": {
+      "userId": "string or null",
+      "aid": "string or null (e.g., '46AA6F08-451D-4E62-B9CE-D8C945848BEE')",
+      "otherIds": []
+    }
   }
-}`;
+}
+
+Important:
+1. ALWAYS extract technical information even if it appears in signatures or informal parts of the email
+2. Look for version numbers in formats like x.x.x or standard version patterns
+3. Parse device information from phrases like "Sent from my iPhone" or similar signatures
+4. Include ALL identifiers found in the email, especially AID or User ID
+5. If information is not found, use null instead of omitting the field
+
+Example technical patterns to look for:
+- "iPhone X, iOS 15.5"
+- "App version 2.1.0"
+- "AID: XXXXX-XXXXX-XXXXX"
+- "Sent from my [Device]"
+- "Version 3.0.0"
+- "Build 123"
+- "Device ID: XXXXX"
+
+Extract any technical information like app versions, device details, and user IDs, even if they appear in 
+different formats or locations in the email.`;
 const analyzeEmail = async (subject, body) => {
   try {
     const apiKey = settings_getProperty(constants_CONFIG.PROPERTIES.OPENAI_API_KEY);
@@ -379,7 +460,13 @@ const analyzeEmail = async (subject, body) => {
     }
     try {
       const analysis = JSON.parse(result.choices[0].message.content);
+
+      // If email is not relevant, throw an error with the reason
+      if (!analysis.relevant) {
+        throw new Error(`Email skipped: ${analysis.reason}`);
+      }
       logInfo('Email Analysis', `Analysis completed for: ${subject}`);
+      logInfo('Email Analysis', `Analysis: ${JSON.stringify(analysis)}`);
       return analysis;
     } catch (parseError) {
       logger_logError('OpenAI Response Parse Error', parseError);
@@ -399,15 +486,15 @@ const analyzeEmail = async (subject, body) => {
 
 const createErrorCard = message => {
   const card = CardService.newCardBuilder();
-  card.setHeader(createHeader('Error', null, false));
-  const errorSection = createSection(null, [CardService.newTextParagraph().setText(`❌ ${message}`), createActionButton('Back to Home', 'onHomepage')]);
+  card.setHeader(components_createHeader('Error', null, false));
+  const errorSection = components_createSection(null, [CardService.newTextParagraph().setText(`❌ ${message}`), createActionButton('Back to Home', 'onHomepage')]);
   return card.addSection(errorSection).build();
 };
 const createHomeCard = () => {
   const card = CardService.newCardBuilder();
 
   // Add header
-  card.setHeader(createHeader('Gmail Task Automation', 'Automate your email workflows', false));
+  card.setHeader(components_createHeader('Gmail Task Automation', 'Automate your email workflows', false));
 
   // Add settings button in its own section
   const settingsSection = createHeaderSection(true);
@@ -420,16 +507,16 @@ const createHomeCard = () => {
     const message = getCurrentMessage();
     if (message) {
       const metadata = getMessageMetadata(message);
-      const emailSection = createSection('Selected Email', [createKeyValueWidget('Subject', metadata.subject), createKeyValueWidget('From', metadata.sender), createKeyValueWidget('Date', metadata.date.toLocaleString())]);
+      const emailSection = components_createSection('Selected Email', [createKeyValueWidget('Subject', metadata.subject), createKeyValueWidget('From', metadata.sender), createKeyValueWidget('Date', metadata.date.toLocaleString())]);
       card.addSection(emailSection);
     }
   } catch (error) {
-    const noEmailSection = createSection('No Email Selected', [CardService.newTextParagraph().setText('Please select an email to get started.')]);
+    const noEmailSection = components_createSection('No Email Selected', [CardService.newTextParagraph().setText('Please select an email to get started.')]);
     card.addSection(noEmailSection);
   }
 
   // Main workflow button
-  const workflowSection = createSection('Quick Actions', [createActionButton('📋 Customer Support Workflow', 'handleCustomerSupportWorkflow', {}, 'filled'), createButtonSet([createActionButton('Analyze Email', 'analyzeCurrentEmail')])]);
+  const workflowSection = components_createSection('Quick Actions', [createActionButton('📋 Customer Support Workflow', 'handleCustomerSupportWorkflow', {}, 'filled'), createButtonSet([createActionButton('Analyze Email', 'analyzeCurrentEmail')])]);
   return card.addSection(workflowSection).build();
 };
 const createAnalysisCard = async () => {
@@ -438,13 +525,51 @@ const createAnalysisCard = async () => {
     const message = getCurrentMessage();
     const metadata = getMessageMetadata(message);
     const analysis = await analyzeEmail(metadata.subject, metadata.body);
-    card.setHeader(createHeader('Email Analysis', metadata.subject));
-    const summarySection = createSection('Summary', [CardService.newTextParagraph().setText(analysis.analysis.summary), createKeyValueWidget('Priority', analysis.emailMetadata.priority, analysis.emailMetadata.priority === 'High' ? CardService.Icon.PRIORITY_HIGH : CardService.Icon.DESCRIPTION), createKeyValueWidget('Category', analysis.emailMetadata.category, CardService.Icon.BOOKMARK)]);
-    const actionsSection = createSection('Actions', [createButtonSet([createActionButton('Create Task', 'createTask', {
-      title: analysis.analysis.summary,
-      priority: analysis.emailMetadata.priority,
-      platform: constants_CONFIG.WORKFLOWS.CUSTOMER_SUPPORT.defaultPlatform
-    }, 'filled'), createActionButton('Back', 'onHomepage')])]);
+    card.setHeader(components_createHeader('Email Analysis', metadata.subject));
+    const summarySection = components_createSection('Summary', [CardService.newTextParagraph().setText(analysis.analysis.summary), createKeyValueWidget('Priority', analysis.emailMetadata.priority, analysis.emailMetadata.priority === 'High' ? CardService.Icon.PRIORITY_HIGH : CardService.Icon.DESCRIPTION), createKeyValueWidget('Category', analysis.emailMetadata.category, CardService.Icon.BOOKMARK)]);
+
+    // Get configured platforms and create action section
+    const configuredPlatforms = getConfiguredPlatforms('CUSTOMER_SUPPORT');
+    const actionsSection = CardService.newCardSection().setHeader('Available Actions');
+    if (configuredPlatforms.length === 0) {
+      actionsSection.addWidget(CardService.newTextParagraph().setText('⚠️ No task platforms configured. Please configure at least one platform in settings.')).addWidget(CardService.newTextButton().setText('Go to Settings').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setOnClickAction(CardService.newAction().setFunctionName('showIntegrationSettings')));
+    } else {
+      // Add button for each configured platform
+      configuredPlatforms.forEach(platform => {
+        let buttonText;
+        switch (platform.toLowerCase()) {
+          case 'slack':
+            buttonText = 'Send to Slack';
+            break;
+          case 'notion':
+            buttonText = 'Create in Notion';
+            break;
+          case 'jira':
+            buttonText = 'Create Jira Issue';
+            break;
+          default:
+            buttonText = `Send to ${platform}`;
+        }
+        const taskMetadata = {
+          emailId: metadata.id || '',
+          threadId: metadata.threadId || '',
+          sentiment: analysis.analysis.sentiment || 'neutral',
+          responseNeeded: analysis.emailMetadata.responseNeeded || false
+        };
+        actionsSection.addWidget(CardService.newTextButton().setText(buttonText).setTextButtonStyle(CardService.TextButtonStyle.FILLED).setOnClickAction(CardService.newAction().setFunctionName('createTask').setParameters({
+          platform,
+          title: analysis.analysis.summary || 'Untitled Task',
+          description: analysis.analysis.details || 'No description provided',
+          priority: analysis.emailMetadata.priority || 'Medium',
+          category: analysis.emailMetadata.category || 'Support',
+          metadata: JSON.stringify(taskMetadata),
+          technicalDetails: JSON.stringify(analysis.technicalDetails || null)
+        })));
+      });
+    }
+
+    // Add back button
+    actionsSection.addWidget(CardService.newTextButton().setText('Back').setOnClickAction(CardService.newAction().setFunctionName('onHomepage')));
     return card.addSection(summarySection).addSection(actionsSection).build();
   } catch (error) {
     logger_logError('Analysis Card Error', error);
@@ -453,8 +578,8 @@ const createAnalysisCard = async () => {
 };
 const createSettingsCard = () => {
   const card = CardService.newCardBuilder();
-  card.setHeader(createHeader('Settings', null, false));
-  const integrationSection = createSection('Integrations', Object.entries(constants_CONFIG.INTEGRATIONS).map(([key, integration]) => {
+  card.setHeader(components_createHeader('Settings', null, false));
+  const integrationSection = components_createSection('Integrations', Object.entries(constants_CONFIG.INTEGRATIONS).map(([key, integration]) => {
     const isConfigured = validateIntegrationConfig(key.toLowerCase());
     return createKeyValueWidget(integration.name, isConfigured ? 'Connected' : 'Not Configured', isConfigured ? CardService.Icon.CONFIRMATION_NUMBER_ICON : CardService.Icon.DESCRIPTION);
   }).concat([createActionButton('Configure Integrations', 'showIntegrationSettings')]));
@@ -466,18 +591,18 @@ const createSettingsCard = () => {
 
 const createIntegrationSettingsCard = () => {
   const card = CardService.newCardBuilder();
-  card.setHeader(createHeader('Integration Settings', null, false));
+  card.setHeader(components_createHeader('Integration Settings', null, false));
 
   // Create sections for each integration
   Object.entries(constants_CONFIG.INTEGRATIONS).forEach(([key, integration]) => {
-    const section = createSection(`${integration.name} Settings`, [...integration.fields.map(field => CardService.newTextInput().setFieldName(field.key).setTitle(field.label).setValue(settings_getProperty(constants_CONFIG.PROPERTIES[field.key]) || '').setMultiline(false)), CardService.newButtonSet().addButton(CardService.newTextButton().setText(`Save ${integration.name} Settings`).setOnClickAction(CardService.newAction().setFunctionName(`onSave${key}Settings`).setParameters({
+    const section = components_createSection(`${integration.name} Settings`, [...integration.fields.map(field => CardService.newTextInput().setFieldName(field.key).setTitle(field.label).setValue(settings_getProperty(constants_CONFIG.PROPERTIES[field.key]) || '').setMultiline(false)), CardService.newButtonSet().addButton(CardService.newTextButton().setText(`Save ${integration.name} Settings`).setOnClickAction(CardService.newAction().setFunctionName(`onSave${key}Settings`).setParameters({
       source: 'settings'
     }))).addButton(CardService.newTextButton().setText('Delete').setTextButtonStyle(CardService.TextButtonStyle.TEXT).setOnClickAction(CardService.newAction().setFunctionName('showDeleteConfirmation').setParameters({
       integration: key
     })))]);
     card.addSection(section);
   });
-  return card.addSection(createSection(null, [createActionButton('Back', 'showSettingsCard')])).build();
+  return card.addSection(components_createSection(null, [createActionButton('Back', 'showSettingsCard')])).build();
 };
 
 // Add delete confirmation dialog
@@ -487,7 +612,7 @@ const createDeleteConfirmationCard = e => {
   } = e.parameters;
   const card = CardService.newCardBuilder();
   card.setHeader(createHeader('Confirm Delete', null, false));
-  const confirmSection = createSection(null, [CardService.newTextParagraph().setText(`Are you sure you want to delete the ${constants_CONFIG.INTEGRATIONS[integration].name} ` + 'integration settings? This cannot be undone.'), CardService.newButtonSet().addButton(CardService.newTextButton().setText('Delete').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setBackgroundColor(constants_CONFIG.UI.COLORS.ERROR).setOnClickAction(CardService.newAction().setFunctionName('handleDeleteIntegration').setParameters({
+  const confirmSection = createSection(null, [CardService.newTextParagraph().setText(`Are you sure you want to delete the ${CONFIG.INTEGRATIONS[integration].name} ` + 'integration settings? This cannot be undone.'), CardService.newButtonSet().addButton(CardService.newTextButton().setText('Delete').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setBackgroundColor(CONFIG.UI.COLORS.ERROR).setOnClickAction(CardService.newAction().setFunctionName('handleDeleteIntegration').setParameters({
     integration
   }))).addButton(CardService.newTextButton().setText('Cancel').setOnClickAction(CardService.newAction().setFunctionName('showIntegrationSettings')))]);
   return card.addSection(confirmSection).build();
@@ -545,6 +670,54 @@ const handleSaveNotionSettings = e => {
     setProperty(constants_CONFIG.PROPERTIES.NOTION_DATABASE_ID, databaseId);
   }
   return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText('Notion settings saved successfully').setType(CardService.NotificationType.SUCCESS)).build();
+};
+;// CONCATENATED MODULE: ./src/server/ui/settings-handlers.js
+
+
+
+
+const handleDeleteIntegration = e => {
+  const {
+    integration
+  } = e.parameters;
+  logInfo('Settings', `Deleting ${integration} integration`);
+  try {
+    if (!integration || !constants_CONFIG.INTEGRATIONS[integration]) {
+      throw new Error(constants_CONFIG.ERROR_MESSAGES.INVALID_INTEGRATION);
+    }
+
+    // Get all property keys for this integration
+    const propertiesToDelete = constants_CONFIG.INTEGRATIONS[integration].fields.map(field => constants_CONFIG.PROPERTIES[field.key]).filter(Boolean); // Remove any undefined/null values
+
+    if (propertiesToDelete.length === 0) {
+      throw new Error('No properties found to delete');
+    }
+
+    // Delete the properties
+    const success = deleteProperties(propertiesToDelete);
+    if (!success) {
+      throw new Error(constants_CONFIG.ERROR_MESSAGES.DELETE_FAILED);
+    }
+
+    // Return success response
+    return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().updateCard(createIntegrationSettingsCard())).setNotification(CardService.newNotification().setText(`${constants_CONFIG.INTEGRATIONS[integration].name} integration deleted successfully`).setType(CardService.NotificationType.INFO)).build();
+  } catch (error) {
+    logger_logError('Delete Integration Error', error);
+    return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText(`Failed to delete integration: ${error.message}`).setType(CardService.NotificationType.ERROR)).build();
+  }
+};
+const showDeleteConfirmation = e => {
+  const {
+    integration
+  } = e.parameters;
+  logInfo('Settings', `Showing delete confirmation for ${integration}`);
+  const card = CardService.newCardBuilder();
+  card.setHeader(CardService.newCardHeader().setTitle(`Delete ${constants_CONFIG.INTEGRATIONS[integration].name} Integration`));
+
+  // Add section directly to card instead of storing in variable
+  return card.addSection(CardService.newCardSection().addWidget(CardService.newTextParagraph().setText(`Are you sure you want to delete the ${constants_CONFIG.INTEGRATIONS[integration].name} integration? ` + 'This will remove all settings.')).addWidget(CardService.newButtonSet().addButton(CardService.newTextButton().setText('Delete').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setBackgroundColor('#d93025').setOnClickAction(CardService.newAction().setFunctionName('handleDeleteIntegration').setParameters({
+    integration
+  }))).addButton(CardService.newTextButton().setText('Cancel').setOnClickAction(CardService.newAction().setFunctionName('showIntegrationSettings'))))).build();
 };
 ;// CONCATENATED MODULE: ./src/server/integrations/notion.js
 
@@ -662,56 +835,6 @@ const validateNotionConfig = async () => {
     return false;
   }
 };
-;// CONCATENATED MODULE: ./src/server/workflows/customer-support.js
-
-
-
-
-
-
-
-
-const processCustomerSupportWorkflow = async () => {
-  try {
-    // Check if workflow is properly configured
-    if (!validateWorkflowConfig('CUSTOMER_SUPPORT')) {
-      logger_logError('Customer Support Workflow', 'Required integrations not configured');
-      return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().updateCard(createIntegrationSettingsCard())).setNotification(CardService.newNotification().setText('Please configure required integrations (OpenAI and Notion) first').setType(CardService.NotificationType.WARNING)).build();
-    }
-    const message = getCurrentMessage();
-    if (!message) {
-      return createErrorCard(constants_CONFIG.ERROR_MESSAGES.NO_EMAIL_SELECTED);
-    }
-    const metadata = getMessageMetadata(message);
-    logInfo('Customer Support Workflow', 'Starting email analysis');
-    const analysis = await analyzeEmail(metadata.subject, metadata.body);
-    if (!analysis || !analysis.analysis) {
-      logger_logError('Customer Support Workflow', 'Invalid analysis response');
-      return createErrorCard(constants_CONFIG.ERROR_MESSAGES.ANALYSIS_FAILED);
-    }
-    logInfo('Customer Support Workflow', 'Creating Notion task');
-    const taskResult = await createNotionTask({
-      title: analysis.analysis.summary,
-      description: `${analysis.analysis.details}\n\nOriginal Email:\n${metadata.body}`,
-      priority: analysis.emailMetadata.priority,
-      category: analysis.emailMetadata.category,
-      metadata: {
-        emailId: metadata.id,
-        threadId: metadata.threadId,
-        sentiment: analysis.analysis.sentiment,
-        responseNeeded: analysis.emailMetadata.responseNeeded
-      }
-    });
-    if (!taskResult || !taskResult.id) {
-      throw new Error(constants_CONFIG.ERROR_MESSAGES.TASK_CREATION_FAILED);
-    }
-    logInfo('Customer Support Workflow', `Task created: ${taskResult.id}`);
-    return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().popToRoot()).setNotification(CardService.newNotification().setText('Task created successfully!').setType(CardService.NotificationType.SUCCESS)).build();
-  } catch (error) {
-    logger_logError('Customer Support Workflow', error);
-    return createErrorCard(error.message);
-  }
-};
 ;// CONCATENATED MODULE: ./src/server/integrations/jira.js
 
 
@@ -780,8 +903,345 @@ const createJiraIssue = async ({
     throw error;
   }
 };
-;// CONCATENATED MODULE: ./src/index.js
+;// CONCATENATED MODULE: ./src/server/integrations/slack.js
 
+
+
+const sendSlackNotification = async ({
+  title,
+  description,
+  priority,
+  category,
+  metadata,
+  taskUrl,
+  technicalDetails
+}) => {
+  try {
+    const webhookUrl = settings_getProperty(constants_CONFIG.PROPERTIES.SLACK_WEBHOOK_URL);
+    const channel = settings_getProperty(constants_CONFIG.PROPERTIES.SLACK_CHANNEL);
+    if (!webhookUrl) {
+      throw new Error(constants_CONFIG.ERROR_MESSAGES.MISSING_INTEGRATION('Slack'));
+    }
+    const blocks = [{
+      type: 'header',
+      text: {
+        type: 'plain_text',
+        text: '📧 New Support Task Created',
+        emoji: true
+      }
+    }, {
+      type: 'section',
+      fields: [{
+        type: 'mrkdwn',
+        text: `*Title:*\n${title}`
+      }, {
+        type: 'mrkdwn',
+        text: `*Priority:*\n${priority}`
+      }]
+    }, {
+      type: 'section',
+      fields: [{
+        type: 'mrkdwn',
+        text: `*Category:*\n${category}`
+      }, {
+        type: 'mrkdwn',
+        text: `*Email ID:*\n${metadata.emailId}`
+      }]
+    }];
+    if (technicalDetails) {
+      const techFields = [];
+      if (technicalDetails.appVersion) {
+        techFields.push({
+          type: 'mrkdwn',
+          text: `*App Version:*\n${technicalDetails.appVersion}`
+        });
+      }
+      if (technicalDetails.deviceInfo) {
+        const {
+          deviceInfo
+        } = technicalDetails;
+        if (deviceInfo.type) techFields.push({
+          type: 'mrkdwn',
+          text: `*Device Type:*\n${deviceInfo.type}`
+        });
+        if (deviceInfo.model) techFields.push({
+          type: 'mrkdwn',
+          text: `*Device Model:*\n${deviceInfo.model}`
+        });
+        if (deviceInfo.osVersion) techFields.push({
+          type: 'mrkdwn',
+          text: `*OS Version:*\n${deviceInfo.osVersion}`
+        });
+        if (deviceInfo.deviceId) techFields.push({
+          type: 'mrkdwn',
+          text: `*Device ID:*\n${deviceInfo.deviceId}`
+        });
+      }
+      if (technicalDetails.userIdentifiers) {
+        const {
+          userIdentifiers
+        } = technicalDetails;
+        if (userIdentifiers.userId) techFields.push({
+          type: 'mrkdwn',
+          text: `*User ID:*\n${userIdentifiers.userId}`
+        });
+        if (userIdentifiers.aid) techFields.push({
+          type: 'mrkdwn',
+          text: `*AID:*\n${userIdentifiers.aid}`
+        });
+      }
+      for (let i = 0; i < techFields.length; i += 10) {
+        blocks.push({
+          type: 'section',
+          fields: techFields.slice(i, i + 10)
+        });
+      }
+    }
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Description:*\n${description}`
+      }
+    });
+    if (taskUrl) {
+      blocks.push({
+        type: 'actions',
+        elements: [{
+          type: 'button',
+          text: {
+            type: 'plain_text',
+            text: 'View Task',
+            emoji: true
+          },
+          url: taskUrl,
+          style: 'primary'
+        }]
+      });
+    }
+    const response = await UrlFetchApp.fetch(webhookUrl, {
+      method: 'post',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      muteHttpExceptions: true,
+      payload: JSON.stringify({
+        channel,
+        blocks
+      })
+    });
+    if (response.getResponseCode() !== 200) {
+      const error = response.getContentText();
+      throw new Error(`Slack API Error: ${error}`);
+    }
+    return {
+      id: new Date().getTime().toString(),
+      url: null
+    };
+  } catch (error) {
+    logger_logError('Send Slack Notification Error', error);
+    throw error;
+  }
+};
+;// CONCATENATED MODULE: ./src/server/workflows/customer-support.js
+
+
+
+
+
+
+
+
+
+
+const createWorkflowResultCard = (analysis, metadata) => {
+  const card = CardService.newCardBuilder();
+  card.setHeader(CardService.newCardHeader().setTitle('Email Analysis').setSubtitle(metadata.subject));
+
+  // Analysis Summary Section
+  const summarySection = CardService.newCardSection().addWidget(CardService.newTextParagraph().setText(analysis.analysis.summary)).addWidget(CardService.newKeyValue().setTopLabel('Priority').setContent(analysis.emailMetadata.priority)).addWidget(CardService.newKeyValue().setTopLabel('Category').setContent(analysis.emailMetadata.category));
+
+  // Technical Details Section (if available)
+  if (analysis.technicalDetails) {
+    const techSection = CardService.newCardSection().addWidget(CardService.newTextParagraph().setText('🔧 Technical Details'));
+    if (analysis.technicalDetails.appVersion) {
+      techSection.addWidget(CardService.newKeyValue().setTopLabel('App Version').setContent(analysis.technicalDetails.appVersion));
+    }
+    if (analysis.technicalDetails.deviceInfo) {
+      const {
+        deviceInfo
+      } = analysis.technicalDetails;
+      if (deviceInfo.type) {
+        techSection.addWidget(CardService.newKeyValue().setTopLabel('Device Type').setContent(deviceInfo.type));
+      }
+      if (deviceInfo.model) {
+        techSection.addWidget(CardService.newKeyValue().setTopLabel('Device Model').setContent(deviceInfo.model));
+      }
+      if (deviceInfo.osVersion) {
+        techSection.addWidget(CardService.newKeyValue().setTopLabel('OS Version').setContent(deviceInfo.osVersion));
+      }
+    }
+    if (analysis.technicalDetails.userIdentifiers) {
+      const {
+        userIdentifiers
+      } = analysis.technicalDetails;
+      if (userIdentifiers.aid) {
+        techSection.addWidget(CardService.newKeyValue().setTopLabel('AID').setContent(userIdentifiers.aid));
+      }
+      if (userIdentifiers.userId) {
+        techSection.addWidget(CardService.newKeyValue().setTopLabel('User ID').setContent(userIdentifiers.userId));
+      }
+    }
+    card.addSection(techSection);
+  }
+
+  // Actions Section - Only show available integrations
+  const configuredPlatforms = getConfiguredPlatforms('CUSTOMER_SUPPORT');
+  const actionsSection = CardService.newCardSection().setHeader('Available Actions');
+  if (configuredPlatforms.length === 0) {
+    actionsSection.addWidget(CardService.newTextParagraph().setText('⚠️ No task platforms configured. Please configure at least one platform in settings.')).addWidget(CardService.newTextButton().setText('Go to Settings').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setOnClickAction(CardService.newAction().setFunctionName('showIntegrationSettings')));
+  } else {
+    // Add button for each configured platform with descriptive text
+    configuredPlatforms.forEach(platform => {
+      const taskMetadata = {
+        emailId: metadata.id || '',
+        threadId: metadata.threadId || '',
+        sentiment: analysis.analysis.sentiment || 'neutral',
+        responseNeeded: analysis.emailMetadata.responseNeeded || false
+      };
+      let buttonText;
+      switch (platform.toLowerCase()) {
+        case 'slack':
+          buttonText = 'Send to Slack';
+          break;
+        case 'notion':
+          buttonText = 'Create in Notion';
+          break;
+        case 'jira':
+          buttonText = 'Create Jira Issue';
+          break;
+        default:
+          buttonText = `Send to ${platform}`;
+      }
+      actionsSection.addWidget(CardService.newTextButton().setText(buttonText).setTextButtonStyle(CardService.TextButtonStyle.FILLED).setOnClickAction(CardService.newAction().setFunctionName('createTask').setParameters({
+        platform,
+        title: analysis.analysis.summary || 'Untitled Task',
+        description: analysis.analysis.details || 'No description provided',
+        priority: analysis.emailMetadata.priority || 'Medium',
+        category: analysis.emailMetadata.category || 'Support',
+        metadata: JSON.stringify(taskMetadata),
+        technicalDetails: JSON.stringify(analysis.technicalDetails || null)
+      })));
+    });
+  }
+
+  // Add back button
+  actionsSection.addWidget(CardService.newTextButton().setText('Back').setOnClickAction(CardService.newAction().setFunctionName('onHomepage')));
+  return card.addSection(summarySection).addSection(actionsSection).build();
+};
+const processCustomerSupportWorkflow = async () => {
+  try {
+    // Check if workflow is properly configured
+    if (!validateWorkflowConfig('CUSTOMER_SUPPORT')) {
+      logger_logError('Customer Support Workflow', 'Required integrations not configured');
+      return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().updateCard(createIntegrationSettingsCard())).setNotification(CardService.newNotification().setText('Please configure OpenAI and at least one task platform').setType(CardService.NotificationType.WARNING)).build();
+    }
+    const message = getCurrentMessage();
+    if (!message) {
+      return createErrorCard(constants_CONFIG.ERROR_MESSAGES.NO_EMAIL_SELECTED);
+    }
+    const metadata = getMessageMetadata(message);
+    logInfo('Customer Support Workflow', 'Starting email analysis');
+    try {
+      const analysis = await analyzeEmail(metadata.subject, metadata.body);
+      logInfo('Customer Support Workflow', JSON.stringify(analysis));
+      if (!analysis || !analysis.analysis) {
+        logger_logError('Customer Support Workflow', 'Invalid analysis response');
+        return createErrorCard(constants_CONFIG.ERROR_MESSAGES.ANALYSIS_FAILED);
+      }
+
+      // Show analysis results and platform selection
+      return createWorkflowResultCard(analysis, metadata);
+    } catch (error) {
+      if (error.message.startsWith('Email skipped:')) {
+        return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText(error.message).setType(CardService.NotificationType.INFO)).build();
+      }
+      throw error;
+    }
+  } catch (error) {
+    logger_logError('Customer Support Workflow', error);
+    return createErrorCard(error.message);
+  }
+};
+const createWorkflowTask = async (platform, params) => {
+  try {
+    logInfo('Task Creation', `Creating task in ${platform}`);
+
+    // Verify platform is configured
+    if (!validateIntegrationConfig(platform)) {
+      throw new Error(`${platform} is not properly configured. Please check settings.`);
+    }
+
+    // Parse metadata and technical details
+    let metadata;
+    let technicalDetails;
+    try {
+      metadata = params.metadata ? JSON.parse(params.metadata) : {};
+      technicalDetails = params.technicalDetails ? JSON.parse(params.technicalDetails) : null;
+    } catch (error) {
+      logger_logError('Parse Error', error);
+      metadata = {};
+      technicalDetails = null;
+    }
+    const taskParams = {
+      title: params.title || 'Untitled Task',
+      description: params.description || 'No description provided',
+      priority: params.priority || 'Medium',
+      category: params.category || 'Support',
+      metadata,
+      technicalDetails
+    };
+    let result;
+    switch (platform.toLowerCase()) {
+      case 'notion':
+        result = await createNotionTask(taskParams);
+        break;
+      case 'jira':
+        result = await createJiraIssue(taskParams);
+        break;
+      case 'slack':
+        result = await sendSlackNotification({
+          ...taskParams,
+          taskUrl: null
+        });
+        break;
+      default:
+        throw new Error(`Invalid platform: ${platform}`);
+    }
+    if (!result) {
+      throw new Error(`Failed to create task in ${platform}`);
+    }
+
+    // Send additional Slack notification if configured
+    if (platform !== 'slack' && validateIntegrationConfig('slack')) {
+      try {
+        await sendSlackNotification({
+          ...taskParams,
+          taskUrl: result.url
+        });
+      } catch (error) {
+        logger_logError('Slack Notification Error', error);
+        // Don't fail the main task creation
+      }
+    }
+    logInfo('Task Creation', `Task created in ${platform}: ${result.id}`);
+    return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().popToRoot()).setNotification(CardService.newNotification().setText(`Successfully sent to ${constants_CONFIG.INTEGRATIONS[platform.toUpperCase()].name}`).setType(CardService.NotificationType.SUCCESS)).build();
+  } catch (error) {
+    logger_logError('Create Task Error', error);
+    return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText(error.message).setType(CardService.NotificationType.ERROR)).build();
+  }
+};
+;// CONCATENATED MODULE: ./src/index.js
 
 
 
@@ -819,42 +1279,11 @@ function showIntegrationSettings() {
   return createIntegrationSettingsCard();
 }
 function createTask(e) {
-  logInfo('Task Creation', 'Creating task');
   const {
-    platform
+    platform,
+    ...params
   } = e.parameters;
-  try {
-    switch (platform) {
-      case 'notion':
-        return createNotionTask(e.parameters);
-      case 'jira':
-        return createJiraIssue(e.parameters);
-      default:
-        throw new Error('Invalid platform selected');
-    }
-  } catch (error) {
-    logger_logError('Create Task Error', error);
-    return createErrorCard(error.message);
-  }
-}
-function showDeleteConfirmation(e) {
-  logInfo('Settings', 'Showing delete confirmation');
-  return createDeleteConfirmationCard(e);
-}
-function handleDeleteIntegration(e) {
-  const {
-    integration
-  } = e.parameters;
-  logInfo('Settings', `Deleting ${integration} integration`);
-  try {
-    // Delete all properties for this integration
-    const propertiesToDelete = constants_CONFIG.INTEGRATIONS[integration].fields.map(field => constants_CONFIG.PROPERTIES[field.key]);
-    deleteProperties(propertiesToDelete);
-    return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().updateCard(createIntegrationSettingsCard())).setNotification(CardService.newNotification().setText(`${constants_CONFIG.INTEGRATIONS[integration].name} integration deleted successfully`).setType(CardService.NotificationType.INFO)).build();
-  } catch (error) {
-    logger_logError('Delete Integration Error', error);
-    return createErrorCard('Failed to delete integration settings');
-  }
+  return createWorkflowTask(platform, params);
 }
 
 // Export all functions
@@ -867,25 +1296,29 @@ __webpack_require__.g.analyzeCurrentEmail = analyzeCurrentEmail;
 __webpack_require__.g.handleCustomerSupportWorkflow = handleCustomerSupportWorkflow;
 __webpack_require__.g.showSettingsCard = showSettingsCard;
 __webpack_require__.g.showIntegrationSettings = showIntegrationSettings;
-__webpack_require__.g.onSaveOpenAISettings = e => {
+__webpack_require__.g.createTask = createTask;
+__webpack_require__.g.handleDeleteIntegration = handleDeleteIntegration;
+
+// Add settings handlers with correct names
+__webpack_require__.g.onSaveOPENAISettings = e => {
   logInfo('Settings', 'Saving OpenAI settings');
   return handleSaveOpenAISettings(e);
 };
-__webpack_require__.g.onSaveNotionSettings = e => {
+__webpack_require__.g.onSaveNOTIONSettings = e => {
   logInfo('Settings', 'Saving Notion settings');
   return handleSaveNotionSettings(e);
 };
-__webpack_require__.g.createTask = createTask;
-__webpack_require__.g.onSaveJiraSettings = e => {
+__webpack_require__.g.onSaveJIRASettings = e => {
   logInfo('Settings', 'Saving Jira settings');
   return handleSaveJiraSettings(e);
 };
-__webpack_require__.g.onSaveSlackSettings = e => {
+__webpack_require__.g.onSaveSLACKSettings = e => {
   logInfo('Settings', 'Saving Slack settings');
   return handleSaveSlackSettings(e);
 };
+
+// Add to global exports
 __webpack_require__.g.showDeleteConfirmation = showDeleteConfirmation;
-__webpack_require__.g.handleDeleteIntegration = handleDeleteIntegration;
 AppLib = __webpack_exports__;
 /******/ })()
 ;

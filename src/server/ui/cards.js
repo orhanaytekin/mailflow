@@ -4,7 +4,7 @@ import {
 } from './components';
 import { getCurrentMessage, getMessageMetadata } from '../utils/gmail';
 import { analyzeEmail } from '../integrations/openai';
-import { validateIntegrationConfig } from '../config/settings';
+import { validateIntegrationConfig, getConfiguredPlatforms } from '../config/settings';
 import { logError } from '../utils/logger';
 
 export const createErrorCard = (message) => {
@@ -83,16 +83,75 @@ export const createAnalysisCard = async () => {
       createKeyValueWidget('Category', analysis.emailMetadata.category, CardService.Icon.BOOKMARK),
     ]);
 
-    const actionsSection = createSection('Actions', [
-      createButtonSet([
-        createActionButton('Create Task', 'createTask', {
-          title: analysis.analysis.summary,
-          priority: analysis.emailMetadata.priority,
-          platform: CONFIG.WORKFLOWS.CUSTOMER_SUPPORT.defaultPlatform,
-        }, 'filled'),
-        createActionButton('Back', 'onHomepage'),
-      ]),
-    ]);
+    // Get configured platforms and create action section
+    const configuredPlatforms = getConfiguredPlatforms('CUSTOMER_SUPPORT');
+    const actionsSection = CardService.newCardSection()
+      .setHeader('Available Actions');
+
+    if (configuredPlatforms.length === 0) {
+      actionsSection
+        .addWidget(CardService.newTextParagraph()
+          .setText('⚠️ No task platforms configured. Please configure at least one platform in settings.'))
+        .addWidget(
+          CardService.newTextButton()
+            .setText('Go to Settings')
+            .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+            .setOnClickAction(
+              CardService.newAction().setFunctionName('showIntegrationSettings'),
+            ),
+        );
+    } else {
+      // Add button for each configured platform
+      configuredPlatforms.forEach((platform) => {
+        let buttonText;
+        switch (platform.toLowerCase()) {
+          case 'slack':
+            buttonText = 'Send to Slack';
+            break;
+          case 'notion':
+            buttonText = 'Create in Notion';
+            break;
+          case 'jira':
+            buttonText = 'Create Jira Issue';
+            break;
+          default:
+            buttonText = `Send to ${platform}`;
+        }
+
+        const taskMetadata = {
+          emailId: metadata.id || '',
+          threadId: metadata.threadId || '',
+          sentiment: analysis.analysis.sentiment || 'neutral',
+          responseNeeded: analysis.emailMetadata.responseNeeded || false,
+        };
+
+        actionsSection.addWidget(
+          CardService.newTextButton()
+            .setText(buttonText)
+            .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+            .setOnClickAction(
+              CardService.newAction()
+                .setFunctionName('createTask')
+                .setParameters({
+                  platform,
+                  title: analysis.analysis.summary || 'Untitled Task',
+                  description: analysis.analysis.details || 'No description provided',
+                  priority: analysis.emailMetadata.priority || 'Medium',
+                  category: analysis.emailMetadata.category || 'Support',
+                  metadata: JSON.stringify(taskMetadata),
+                  technicalDetails: JSON.stringify(analysis.technicalDetails || null),
+                }),
+            ),
+        );
+      });
+    }
+
+    // Add back button
+    actionsSection.addWidget(
+      CardService.newTextButton()
+        .setText('Back')
+        .setOnClickAction(CardService.newAction().setFunctionName('onHomepage')),
+    );
 
     return card.addSection(summarySection).addSection(actionsSection).build();
   } catch (error) {
