@@ -1,6 +1,9 @@
 import { CONFIG } from '../config/constants';
 import { createHeader, createSection, createActionButton } from './components';
 import { getProperty, setProperty } from '../config/settings';
+import { checkNotionSetup } from '../integrations/notion';
+import { logError } from '../utils/logger';
+import { checkJiraSetup } from '../integrations/jira';
 
 export const createIntegrationSettingsCard = () => {
   const card = CardService.newCardBuilder();
@@ -37,6 +40,25 @@ export const createIntegrationSettingsCard = () => {
     ]);
     card.addSection(section);
   });
+
+  // Create and add Notion test section
+  const notionSection = CardService.newCardSection()
+    .setHeader('Notion Settings')
+    .addWidget(
+      CardService.newTextButton()
+        .setText('Test Notion Setup')
+        .setOnClickAction(CardService.newAction().setFunctionName('testNotionSetup')),
+    );
+  card.addSection(notionSection); // Add the section to the card
+
+  const jiraSection = CardService.newCardSection()
+    .setHeader('Jira Settings')
+    .addWidget(
+      CardService.newTextButton()
+        .setText('Test Jira Setup')
+        .setOnClickAction(CardService.newAction().setFunctionName('testJiraSetup')),
+    );
+  card.addSection(jiraSection);
 
   return card
     .addSection(createSection(null, [createActionButton('Back', 'showSettingsCard')]))
@@ -145,4 +167,56 @@ export const handleSaveNotionSettings = (e) => {
       .setText('Notion settings saved successfully')
       .setType(CardService.NotificationType.SUCCESS))
     .build();
+};
+
+export const testNotionSetup = async () => {
+  try {
+    const result = await checkNotionSetup();
+    if (!result.success) {
+      return CardService.newActionResponseBuilder()
+        .setNotification(CardService.newNotification()
+          .setText(`Notion setup error: ${result.error}`)
+          .setType(CardService.NotificationType.ERROR))
+        .build();
+    }
+
+    return CardService.newActionResponseBuilder()
+      .setNotification(CardService.newNotification()
+        .setText('Notion setup verified successfully!')
+        .setType(CardService.NotificationType.SUCCESS))
+      .build();
+  } catch (error) {
+    logError('Test Notion Setup', error);
+    return CardService.newActionResponseBuilder()
+      .setNotification(CardService.newNotification()
+        .setText(`Failed to test Notion setup: ${error.message}`)
+        .setType(CardService.NotificationType.ERROR))
+      .build();
+  }
+};
+
+export const testJiraSetup = async () => {
+  try {
+    const result = await checkJiraSetup();
+    if (!result.success) {
+      return CardService.newActionResponseBuilder()
+        .setNotification(CardService.newNotification()
+          .setText(`Jira setup error: ${result.error}`)
+          .setType(CardService.NotificationType.ERROR))
+        .build();
+    }
+
+    return CardService.newActionResponseBuilder()
+      .setNotification(CardService.newNotification()
+        .setText('Jira setup verified successfully!')
+        .setType(CardService.NotificationType.SUCCESS))
+      .build();
+  } catch (error) {
+    logError('Test Jira Setup', error);
+    return CardService.newActionResponseBuilder()
+      .setNotification(CardService.newNotification()
+        .setText(`Failed to test Jira setup: ${error.message}`)
+        .setType(CardService.NotificationType.ERROR))
+      .build();
+  }
 };

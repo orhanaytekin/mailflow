@@ -36,7 +36,7 @@ This guide explains how to set up each integration for the Gmail Task Automation
    - Paste the Database ID
    - Click "Save Notion Settings"
 
-Required Database Properties:
+Required Database Properties (Not updated. Check the code for the exact names):
 
 - Title (type: title)
 - Status (type: select)
@@ -53,27 +53,68 @@ Required Database Properties:
 4. Name it "Gmail Task Automation"
 5. Copy the token
 6. Get your Jira information:
-   - Domain: `your-domain.atlassian.net`
+   - Domain: Your Jira domain (e.g. `your-domain.atlassian.net`) - do not include https://
    - Email: Your Atlassian account email
-   - Project Key: Found in project settings
-7. In the add-on settings:
-   - Fill in all Jira fields
+   - Project Key: Found in project settings (e.g. `PROJ`)
+
+7. Verify Jira Project Setup:
+   - Go to Project Settings > Issue Types
+   - Ensure "Task" issue type exists
+   - Verify Priority field has options: High, Medium, Low
+   - Add custom fields if needed (see Custom Fields Setup below)
+
+8. In the add-on settings:
+   - Fill in Domain (without https://)
+   - Fill in Email
+   - Fill in API Token
+   - Fill in Project Key
    - Click "Save Jira Settings"
+   - Click "Test Jira Setup" to verify configuration
 
-Custom Fields Setup:
+Note: When entering the domain, only enter the domain part (e.g. `your-domain.atlassian.net`) without `https://` or any trailing slashes.
 
-1. In Jira, go to Project Settings
-2. Click "Issue types"
-3. Add custom fields for:
-   - Email ID
-   - Thread ID
-4. Note the custom field IDs
-5. Update them in the code:
+### Custom Fields Setup (Optional)
+
+1. In Jira, go to Project Settings > Fields
+2. Add custom fields:
+   - Email ID (Text Field)
+   - Thread ID (Text Field)
+3. Get field IDs:
+   - Go to Project Settings > Fields
+   - Click on the field
+   - Note the ID from the URL (e.g., customfield_10000)
+4. Update the code if needed:
 
    ```javascript
    customfield_10000: metadata.emailId,  // Update ID
    customfield_10001: metadata.threadId, // Update ID
    ```
+
+### Troubleshooting
+
+Common Jira errors:
+
+- "No issue key returned": Check project permissions and issue type
+- "Invalid priority": Verify priority options match (High, Medium, Low)
+- "Project not found": Double-check project key
+- "Authentication failed": Verify email and API token
+
+### Jira Issue Format
+
+The add-on creates Jira issues with:
+
+1. Summary: Email subject or analysis summary
+2. Description: Formatted with:
+   - Main description
+   - Technical details section
+   - Email metadata
+3. Priority: Mapped from email priority
+4. Labels:
+   - `email-automation`
+   - Category (lowercase)
+5. Issue Type: Task
+
+Note: Instead of custom fields, all metadata is included in the formatted description for better compatibility across Jira configurations.
 
 ## Slack Integration
 

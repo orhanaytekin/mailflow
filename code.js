@@ -26,6 +26,10 @@ function onSaveSLACKSettings(e) {
 }
 // Add to global exports
 function showDeleteConfirmation() {
+}
+function testNotionSetup() {
+}
+function testJiraSetup() {
 }var AppLib;
 /******/ (() => { // webpackBootstrap
 /******/ 	"use strict";
@@ -585,7 +589,516 @@ const createSettingsCard = () => {
   }).concat([createActionButton('Configure Integrations', 'showIntegrationSettings')]));
   return card.addSection(integrationSection).build();
 };
+;// CONCATENATED MODULE: ./src/server/integrations/notion.js
+
+
+
+const NOTION_API_URL = 'https://api.notion.com/v1';
+const NOTION_VERSION = '2022-06-28';
+const createNotionTask = async params => {
+  try {
+    var _params$technicalDeta, _params$technicalDeta2, _params$technicalDeta3, _params$technicalDeta4, _params$technicalDeta5, _params$metadata, _params$metadata2;
+    const apiKey = settings_getProperty(constants_CONFIG.PROPERTIES.NOTION_API_KEY);
+    const databaseId = settings_getProperty(constants_CONFIG.PROPERTIES.NOTION_DATABASE_ID);
+    if (!apiKey || !databaseId) {
+      throw new Error('Notion API key or database ID not configured');
+    }
+
+    // Log the request payload for debugging
+    const payload = {
+      parent: {
+        database_id: databaseId
+      },
+      properties: {
+        Title: {
+          title: [{
+            text: {
+              content: params.title
+            }
+          }]
+        },
+        Status: {
+          select: {
+            name: 'New'
+          }
+        },
+        Priority: {
+          select: {
+            name: params.priority
+          }
+        },
+        Category: {
+          select: {
+            name: params.category
+          }
+        },
+        Description: {
+          rich_text: [{
+            text: {
+              content: params.description
+            }
+          }]
+        },
+        'App Version': {
+          rich_text: [{
+            text: {
+              content: ((_params$technicalDeta = params.technicalDetails) === null || _params$technicalDeta === void 0 ? void 0 : _params$technicalDeta.appVersion) || 'N/A'
+            }
+          }]
+        },
+        'Device Type': {
+          rich_text: [{
+            text: {
+              content: ((_params$technicalDeta2 = params.technicalDetails) === null || _params$technicalDeta2 === void 0 || (_params$technicalDeta2 = _params$technicalDeta2.deviceInfo) === null || _params$technicalDeta2 === void 0 ? void 0 : _params$technicalDeta2.type) || 'N/A'
+            }
+          }]
+        },
+        'Device Model': {
+          rich_text: [{
+            text: {
+              content: ((_params$technicalDeta3 = params.technicalDetails) === null || _params$technicalDeta3 === void 0 || (_params$technicalDeta3 = _params$technicalDeta3.deviceInfo) === null || _params$technicalDeta3 === void 0 ? void 0 : _params$technicalDeta3.model) || 'N/A'
+            }
+          }]
+        },
+        'OS Version': {
+          rich_text: [{
+            text: {
+              content: ((_params$technicalDeta4 = params.technicalDetails) === null || _params$technicalDeta4 === void 0 || (_params$technicalDeta4 = _params$technicalDeta4.deviceInfo) === null || _params$technicalDeta4 === void 0 ? void 0 : _params$technicalDeta4.osVersion) || 'N/A'
+            }
+          }]
+        },
+        AID: {
+          rich_text: [{
+            text: {
+              content: ((_params$technicalDeta5 = params.technicalDetails) === null || _params$technicalDeta5 === void 0 || (_params$technicalDeta5 = _params$technicalDeta5.userIdentifiers) === null || _params$technicalDeta5 === void 0 ? void 0 : _params$technicalDeta5.aid) || 'N/A'
+            }
+          }]
+        },
+        'Email ID': {
+          rich_text: [{
+            text: {
+              content: ((_params$metadata = params.metadata) === null || _params$metadata === void 0 ? void 0 : _params$metadata.emailId) || 'N/A'
+            }
+          }]
+        },
+        'Thread ID': {
+          rich_text: [{
+            text: {
+              content: ((_params$metadata2 = params.metadata) === null || _params$metadata2 === void 0 ? void 0 : _params$metadata2.threadId) || 'N/A'
+            }
+          }]
+        }
+      }
+    };
+    logInfo('Notion Request', payload);
+    const response = await UrlFetchApp.fetch('https://api.notion.com/v1/pages', {
+      method: 'post',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Notion-Version': '2022-06-28',
+        'Content-Type': 'application/json'
+      },
+      muteHttpExceptions: true,
+      payload: JSON.stringify(payload)
+    });
+
+    // Log the full response for debugging
+    const responseText = response.getContentText();
+    logInfo('Notion Response', 'Raw response:', responseText);
+    const result = JSON.parse(responseText);
+    if (result.error) {
+      logger_logError('Notion API Error', result.error);
+      throw new Error(`Notion API Error: ${result.error.message}`);
+    }
+    if (!result.id) {
+      logger_logError('Notion Task Creation', 'Response:', result);
+      throw new Error('Failed to create Notion task - no ID returned');
+    }
+    logInfo('Notion Task Created', `Task ID: ${result.id}, URL: ${result.url}`);
+    return {
+      id: result.id,
+      url: result.url
+    };
+  } catch (error) {
+    logger_logError('Notion Task Creation Error', {
+      error: error.message,
+      stack: error.stack
+    });
+    throw new Error(`Failed to create Notion task: ${error.message}`);
+  }
+};
+const validateNotionConfig = async () => {
+  try {
+    const token = getProperty(CONFIG.PROPERTIES.NOTION_API_KEY);
+    const databaseId = getProperty(CONFIG.PROPERTIES.NOTION_DATABASE_ID);
+    if (!token || !databaseId) {
+      return false;
+    }
+    const response = await UrlFetchApp.fetch(`${NOTION_API_URL}/databases/${databaseId}`, {
+      method: 'get',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Notion-Version': NOTION_VERSION
+      },
+      muteHttpExceptions: true
+    });
+    const result = JSON.parse(response.getContentText());
+    return !result.error;
+  } catch (error) {
+    logError('Validate Notion Config Error', error);
+    return false;
+  }
+};
+const checkNotionSetup = async () => {
+  try {
+    const apiKey = settings_getProperty(constants_CONFIG.PROPERTIES.NOTION_API_KEY);
+    const databaseId = settings_getProperty(constants_CONFIG.PROPERTIES.NOTION_DATABASE_ID);
+    if (!apiKey || !databaseId) {
+      throw new Error('Missing API key or database ID');
+    }
+
+    // First check API key validity
+    const userResponse = await UrlFetchApp.fetch('https://api.notion.com/v1/users/me', {
+      method: 'get',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Notion-Version': '2022-06-28'
+      },
+      muteHttpExceptions: true
+    });
+    const userResult = JSON.parse(userResponse.getContentText());
+    if (userResult.error) {
+      throw new Error(`Invalid API key: ${userResult.error.message}`);
+    }
+
+    // Then check database access and schema
+    const dbResponse = await UrlFetchApp.fetch(`https://api.notion.com/v1/databases/${databaseId}`, {
+      method: 'get',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Notion-Version': '2022-06-28'
+      },
+      muteHttpExceptions: true
+    });
+    const dbResult = JSON.parse(dbResponse.getContentText());
+    logInfo('Notion Database Check', dbResult);
+    if (dbResult.error) {
+      throw new Error(`Database access error: ${dbResult.error.message}`);
+    }
+
+    // Verify required properties exist with correct types
+    const requiredProperties = {
+      Title: 'title',
+      Status: 'select',
+      Priority: 'select',
+      Category: 'select',
+      Description: 'rich_text',
+      'App Version': 'rich_text',
+      'Device Type': 'rich_text',
+      'Device Model': 'rich_text',
+      'OS Version': 'rich_text',
+      AID: 'rich_text',
+      'Email ID': 'rich_text',
+      'Thread ID': 'rich_text'
+    };
+    const missingProperties = [];
+    const wrongTypes = [];
+    Object.entries(requiredProperties).forEach(([propName, expectedType]) => {
+      const prop = dbResult.properties[propName];
+      if (!prop) {
+        missingProperties.push(propName);
+      } else if (prop.type !== expectedType) {
+        wrongTypes.push(`${propName} (expected ${expectedType}, got ${prop.type})`);
+      }
+    });
+    if (missingProperties.length > 0) {
+      throw new Error(`Missing properties: ${missingProperties.join(', ')}`);
+    }
+    if (wrongTypes.length > 0) {
+      throw new Error(`Wrong property types: ${wrongTypes.join(', ')}`);
+    }
+
+    // Check select options
+    const statusOptions = dbResult.properties.Status.select.options.map(o => o.name);
+    if (!statusOptions.includes('New')) {
+      throw new Error('Status property missing "New" option');
+    }
+    return {
+      success: true,
+      bot: userResult.bot,
+      workspace: dbResult.parent.workspace,
+      properties: dbResult.properties
+    };
+  } catch (error) {
+    logger_logError('Notion Setup Check', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+};
+;// CONCATENATED MODULE: ./src/server/integrations/jira.js
+
+
+
+
+// Helper function to map our priority levels to Jira priority names
+const mapPriority = priority => {
+  switch (priority.toLowerCase()) {
+    case 'high':
+      return 'High';
+    case 'medium':
+      return 'Medium';
+    case 'low':
+      return 'Low';
+    default:
+      return 'Medium';
+  }
+};
+const createJiraIssue = async params => {
+  // Declare variables at the top of the function scope
+  let token;
+  let email;
+  let domain;
+  let projectKey;
+  try {
+    token = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_API_TOKEN);
+    email = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_EMAIL);
+    domain = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_DOMAIN);
+    projectKey = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_PROJECT_KEY);
+    if (!token || !email || !domain || !projectKey) {
+      throw new Error('Jira configuration missing. Please check settings.');
+    }
+
+    // Construct proper URL - ensure no double https://
+    const baseUrl = domain.startsWith('https://') ? domain : `https://${domain}`;
+    const apiUrl = `${baseUrl}/rest/api/3/issue`;
+
+    // Log request details (excluding sensitive info)
+    logInfo('Jira Request', {
+      url: apiUrl,
+      email,
+      projectKey,
+      title: params.title,
+      priority: params.priority
+    });
+
+    // Build description including metadata
+    const description = {
+      type: 'doc',
+      version: 1,
+      content: [{
+        type: 'paragraph',
+        content: [{
+          type: 'text',
+          text: params.description
+        }]
+      }, {
+        type: 'paragraph',
+        content: [{
+          type: 'text',
+          text: '\n\nTechnical Details:',
+          marks: [{
+            type: 'strong'
+          }]
+        }]
+      }]
+    };
+
+    // Add metadata to description instead of custom fields
+    if (params.metadata || params.technicalDetails) {
+      var _params$metadata, _params$metadata2, _params$technicalDeta, _params$technicalDeta2;
+      description.content.push({
+        type: 'bulletList',
+        content: [...((_params$metadata = params.metadata) !== null && _params$metadata !== void 0 && _params$metadata.emailId ? [{
+          type: 'listItem',
+          content: [{
+            type: 'paragraph',
+            content: [{
+              type: 'text',
+              text: `Email ID: ${params.metadata.emailId}`
+            }]
+          }]
+        }] : []), ...((_params$metadata2 = params.metadata) !== null && _params$metadata2 !== void 0 && _params$metadata2.threadId ? [{
+          type: 'listItem',
+          content: [{
+            type: 'paragraph',
+            content: [{
+              type: 'text',
+              text: `Thread ID: ${params.metadata.threadId}`
+            }]
+          }]
+        }] : []), ...((_params$technicalDeta = params.technicalDetails) !== null && _params$technicalDeta !== void 0 && _params$technicalDeta.appVersion ? [{
+          type: 'listItem',
+          content: [{
+            type: 'paragraph',
+            content: [{
+              type: 'text',
+              text: `App Version: ${params.technicalDetails.appVersion}`
+            }]
+          }]
+        }] : []), ...((_params$technicalDeta2 = params.technicalDetails) !== null && _params$technicalDeta2 !== void 0 && _params$technicalDeta2.deviceInfo ? [{
+          type: 'listItem',
+          content: [{
+            type: 'paragraph',
+            content: [{
+              type: 'text',
+              text: `Device: ${params.technicalDetails.deviceInfo.type} 
+                \n${params.technicalDetails.deviceInfo.model} 
+                \n(${params.technicalDetails.deviceInfo.osVersion})`
+            }]
+          }]
+        }] : [])]
+      });
+    }
+    const payload = {
+      fields: {
+        project: {
+          key: projectKey
+        },
+        summary: params.title,
+        description,
+        issuetype: {
+          name: 'Task'
+        },
+        priority: {
+          name: mapPriority(params.priority)
+        },
+        labels: ['email-automation', params.category.toLowerCase().split(' ').join('-')]
+      }
+    };
+    logInfo('Jira Payload', payload);
+    const response = await UrlFetchApp.fetch(apiUrl, {
+      method: 'post',
+      headers: {
+        Authorization: `Basic ${Utilities.base64Encode(`${email}:${token}`)}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+      muteHttpExceptions: true,
+      payload: JSON.stringify(payload)
+    });
+
+    // Log response details
+    const responseCode = response.getResponseCode();
+    const responseText = response.getContentText();
+    const responseHeaders = response.getAllHeaders();
+    logInfo('Jira Response Details', {
+      status: responseCode,
+      headers: responseHeaders,
+      body: responseText
+    });
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      logger_logError('Jira Response Parse Error', {
+        error: parseError.message,
+        responseText
+      });
+      throw new Error('Failed to parse Jira response');
+    }
+    if (responseCode !== 201) {
+      var _result$errorMessages, _result$errors;
+      logger_logError('Jira API Error', {
+        status: responseCode,
+        headers: responseHeaders,
+        response: result,
+        payload
+      });
+      const errorMessage = ((_result$errorMessages = result.errorMessages) === null || _result$errorMessages === void 0 ? void 0 : _result$errorMessages[0]) || ((_result$errors = result.errors) === null || _result$errors === void 0 ? void 0 : _result$errors[Object.keys(result.errors)[0]]) || result.message || `HTTP ${responseCode}`;
+      throw new Error(`Jira API Error: ${errorMessage}`);
+    }
+    if (!result.key) {
+      logger_logError('Jira Issue Creation', {
+        response: result,
+        payload
+      });
+      throw new Error('Failed to create Jira issue - no key returned');
+    }
+    logInfo('Jira Issue Created', {
+      key: result.key,
+      id: result.id,
+      url: `${baseUrl}/browse/${result.key}`
+    });
+    return {
+      id: result.id,
+      url: `${baseUrl}/browse/${result.key}`
+    };
+  } catch (error) {
+    logger_logError('Create Jira Issue Error', {
+      error: error.message,
+      stack: error.stack,
+      config: {
+        domain: domain || '(missing)',
+        projectKey: projectKey || '(missing)',
+        email: email ? '(set)' : '(missing)',
+        token: token ? '(set)' : '(missing)'
+      }
+    });
+    throw error;
+  }
+};
+const checkJiraSetup = async () => {
+  try {
+    const token = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_API_TOKEN);
+    const email = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_EMAIL);
+    const domain = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_DOMAIN);
+    const projectKey = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_PROJECT_KEY);
+    if (!token || !email || !domain || !projectKey) {
+      throw new Error('Missing required Jira configuration');
+    }
+    const baseUrl = domain.startsWith('https://') ? domain : `https://${domain}`;
+
+    // Test authentication
+    const authResponse = await UrlFetchApp.fetch(`${baseUrl}/rest/api/3/myself`, {
+      method: 'get',
+      headers: {
+        Authorization: `Basic ${Utilities.base64Encode(`${email}:${token}`)}`,
+        Accept: 'application/json'
+      },
+      muteHttpExceptions: true
+    });
+    if (authResponse.getResponseCode() !== 200) {
+      throw new Error('Authentication failed - check email and API token');
+    }
+
+    // Test project access
+    const projectResponse = await UrlFetchApp.fetch(`${baseUrl}/rest/api/3/project/${projectKey}`, {
+      method: 'get',
+      headers: {
+        Authorization: `Basic ${Utilities.base64Encode(`${email}:${token}`)}`,
+        Accept: 'application/json'
+      },
+      muteHttpExceptions: true
+    });
+    if (projectResponse.getResponseCode() !== 200) {
+      throw new Error(`Project "${projectKey}" not found or not accessible`);
+    }
+
+    // Test issue types
+    const projectData = JSON.parse(projectResponse.getContentText());
+    const issueTypes = projectData.issueTypes || [];
+    if (!issueTypes.some(type => type.name === 'Task')) {
+      throw new Error('Project does not have "Task" issue type');
+    }
+    return {
+      success: true,
+      account: JSON.parse(authResponse.getContentText()),
+      project: projectData
+    };
+  } catch (error) {
+    logger_logError('Jira Setup Check', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+};
 ;// CONCATENATED MODULE: ./src/server/ui/settings.js
+
+
+
 
 
 
@@ -602,6 +1115,13 @@ const createIntegrationSettingsCard = () => {
     })))]);
     card.addSection(section);
   });
+
+  // Create and add Notion test section
+  const notionSection = CardService.newCardSection().setHeader('Notion Settings').addWidget(CardService.newTextButton().setText('Test Notion Setup').setOnClickAction(CardService.newAction().setFunctionName('testNotionSetup')));
+  card.addSection(notionSection); // Add the section to the card
+
+  const jiraSection = CardService.newCardSection().setHeader('Jira Settings').addWidget(CardService.newTextButton().setText('Test Jira Setup').setOnClickAction(CardService.newAction().setFunctionName('testJiraSetup')));
+  card.addSection(jiraSection);
   return card.addSection(components_createSection(null, [createActionButton('Back', 'showSettingsCard')])).build();
 };
 
@@ -671,6 +1191,30 @@ const handleSaveNotionSettings = e => {
   }
   return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText('Notion settings saved successfully').setType(CardService.NotificationType.SUCCESS)).build();
 };
+const testNotionSetup = async () => {
+  try {
+    const result = await checkNotionSetup();
+    if (!result.success) {
+      return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText(`Notion setup error: ${result.error}`).setType(CardService.NotificationType.ERROR)).build();
+    }
+    return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText('Notion setup verified successfully!').setType(CardService.NotificationType.SUCCESS)).build();
+  } catch (error) {
+    logger_logError('Test Notion Setup', error);
+    return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText(`Failed to test Notion setup: ${error.message}`).setType(CardService.NotificationType.ERROR)).build();
+  }
+};
+const testJiraSetup = async () => {
+  try {
+    const result = await checkJiraSetup();
+    if (!result.success) {
+      return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText(`Jira setup error: ${result.error}`).setType(CardService.NotificationType.ERROR)).build();
+    }
+    return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText('Jira setup verified successfully!').setType(CardService.NotificationType.SUCCESS)).build();
+  } catch (error) {
+    logger_logError('Test Jira Setup', error);
+    return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText(`Failed to test Jira setup: ${error.message}`).setType(CardService.NotificationType.ERROR)).build();
+  }
+};
 ;// CONCATENATED MODULE: ./src/server/ui/settings-handlers.js
 
 
@@ -718,190 +1262,6 @@ const showDeleteConfirmation = e => {
   return card.addSection(CardService.newCardSection().addWidget(CardService.newTextParagraph().setText(`Are you sure you want to delete the ${constants_CONFIG.INTEGRATIONS[integration].name} integration? ` + 'This will remove all settings.')).addWidget(CardService.newButtonSet().addButton(CardService.newTextButton().setText('Delete').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setBackgroundColor('#d93025').setOnClickAction(CardService.newAction().setFunctionName('handleDeleteIntegration').setParameters({
     integration
   }))).addButton(CardService.newTextButton().setText('Cancel').setOnClickAction(CardService.newAction().setFunctionName('showIntegrationSettings'))))).build();
-};
-;// CONCATENATED MODULE: ./src/server/integrations/notion.js
-
-
-
-
-const NOTION_API_URL = 'https://api.notion.com/v1';
-const NOTION_VERSION = '2022-06-28';
-const createNotionTask = async params => {
-  try {
-    const apiKey = settings_getProperty(constants_CONFIG.PROPERTIES.NOTION_API_KEY);
-    const databaseId = settings_getProperty(constants_CONFIG.PROPERTIES.NOTION_DATABASE_ID);
-    if (!apiKey || !databaseId) {
-      logger_logError('Notion Task Creation', 'Missing configuration');
-      return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().updateCard(createIntegrationSettingsCard())).setNotification(CardService.newNotification().setText('Please configure Notion integration first').setType(CardService.NotificationType.WARNING)).build();
-    }
-    const response = await UrlFetchApp.fetch(`${NOTION_API_URL}/pages`, {
-      method: 'post',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Notion-Version': NOTION_VERSION,
-        'Content-Type': 'application/json'
-      },
-      muteHttpExceptions: true,
-      payload: JSON.stringify({
-        parent: {
-          database_id: databaseId
-        },
-        properties: {
-          Name: {
-            title: [{
-              text: {
-                content: params.title
-              }
-            }]
-          },
-          Status: {
-            select: {
-              name: 'New'
-            }
-          },
-          Priority: {
-            select: {
-              name: params.priority
-            }
-          },
-          Category: {
-            select: {
-              name: params.category
-            }
-          },
-          'Email ID': {
-            rich_text: [{
-              text: {
-                content: params.metadata.emailId
-              }
-            }]
-          },
-          'Thread ID': {
-            rich_text: [{
-              text: {
-                content: params.metadata.threadId
-              }
-            }]
-          }
-        },
-        children: [{
-          object: 'block',
-          type: 'paragraph',
-          paragraph: {
-            rich_text: [{
-              type: 'text',
-              text: {
-                content: params.description
-              }
-            }]
-          }
-        }]
-      })
-    });
-    const result = JSON.parse(response.getContentText());
-    if (result.error) {
-      logger_logError('Notion API Error', result.error);
-      throw new Error(result.error.message);
-    }
-    logInfo('Notion Task Created', `Task ID: ${result.id}`);
-    return {
-      id: result.id,
-      url: result.url
-    };
-  } catch (error) {
-    logger_logError('Create Notion Task Error', error);
-    throw error;
-  }
-};
-const validateNotionConfig = async () => {
-  try {
-    const token = getProperty(CONFIG.PROPERTIES.NOTION_API_KEY);
-    const databaseId = getProperty(CONFIG.PROPERTIES.NOTION_DATABASE_ID);
-    if (!token || !databaseId) {
-      return false;
-    }
-    const response = await UrlFetchApp.fetch(`${NOTION_API_URL}/databases/${databaseId}`, {
-      method: 'get',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Notion-Version': NOTION_VERSION
-      },
-      muteHttpExceptions: true
-    });
-    const result = JSON.parse(response.getContentText());
-    return !result.error;
-  } catch (error) {
-    logError('Validate Notion Config Error', error);
-    return false;
-  }
-};
-;// CONCATENATED MODULE: ./src/server/integrations/jira.js
-
-
-
-const JIRA_API_VERSION = '3';
-const createJiraIssue = async ({
-  title,
-  description,
-  priority,
-  category,
-  metadata
-}) => {
-  try {
-    const domain = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_DOMAIN);
-    const email = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_EMAIL);
-    const apiToken = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_API_TOKEN);
-    const projectKey = settings_getProperty(constants_CONFIG.PROPERTIES.JIRA_PROJECT_KEY);
-    if (!domain || !email || !apiToken || !projectKey) {
-      throw new Error(constants_CONFIG.ERROR_MESSAGES.MISSING_INTEGRATION('Jira'));
-    }
-    const response = await UrlFetchApp.fetch(`https://${domain}/rest/api/${JIRA_API_VERSION}/issue`, {
-      method: 'post',
-      headers: {
-        Authorization: `Basic ${Utilities.base64Encode(`${email}:${apiToken}`)}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json'
-      },
-      muteHttpExceptions: true,
-      payload: JSON.stringify({
-        fields: {
-          project: {
-            key: projectKey
-          },
-          summary: title,
-          description: {
-            type: 'doc',
-            version: 1,
-            content: [{
-              type: 'paragraph',
-              content: [{
-                type: 'text',
-                text: description
-              }]
-            }]
-          },
-          issuetype: {
-            name: 'Task'
-          },
-          priority: {
-            name: priority
-          },
-          labels: [category, 'email-automation'],
-          customfield_10000: metadata.emailId,
-          // Adjust field ID as needed
-          customfield_10001: metadata.threadId // Adjust field ID as needed
-        }
-      })
-    });
-    const result = JSON.parse(response.getContentText());
-    if (result.errors) {
-      throw new Error(result.errors[0].message);
-    }
-    return result;
-  } catch (error) {
-    logger_logError('Create Jira Issue Error', error);
-    throw error;
-  }
 };
 ;// CONCATENATED MODULE: ./src/server/integrations/slack.js
 
@@ -1218,17 +1578,18 @@ const createWorkflowTask = async (platform, params) => {
       default:
         throw new Error(`Invalid platform: ${platform}`);
     }
-    if (!result) {
+    if (!result || !result.id) {
       throw new Error(`Failed to create task in ${platform}`);
     }
 
-    // Send additional Slack notification if configured
+    // Only send Slack notification if primary task creation succeeded
     if (platform !== 'slack' && validateIntegrationConfig('slack')) {
       try {
         await sendSlackNotification({
           ...taskParams,
           taskUrl: result.url
         });
+        logInfo('Slack Notification', 'Additional notification sent to Slack');
       } catch (error) {
         logger_logError('Slack Notification Error', error);
         // Don't fail the main task creation
@@ -1319,6 +1680,8 @@ __webpack_require__.g.onSaveSLACKSettings = e => {
 
 // Add to global exports
 __webpack_require__.g.showDeleteConfirmation = showDeleteConfirmation;
+__webpack_require__.g.testNotionSetup = testNotionSetup;
+__webpack_require__.g.testJiraSetup = testJiraSetup;
 AppLib = __webpack_exports__;
 /******/ })()
 ;

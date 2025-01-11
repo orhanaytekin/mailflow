@@ -7,6 +7,8 @@ import {
   handleSaveNotionSettings,
   handleSaveJiraSettings,
   handleSaveSlackSettings,
+  testNotionSetup,
+  testJiraSetup,
 } from './server/ui/settings';
 import { handleDeleteIntegration, showDeleteConfirmation } from './server/ui/settings-handlers';
 import { processCustomerSupportWorkflow, createWorkflowTask } from './server/workflows/customer-support';
@@ -97,3 +99,7 @@ global.onSaveSLACKSettings = (e) => {
 
 // Add to global exports
 global.showDeleteConfirmation = showDeleteConfirmation;
+
+global.testNotionSetup = testNotionSetup;
+
+global.testJiraSetup = testJiraSetup;

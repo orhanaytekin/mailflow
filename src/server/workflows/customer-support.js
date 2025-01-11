@@ -247,17 +247,18 @@ export const createWorkflowTask = async (platform, params) => {
         throw new Error(`Invalid platform: ${platform}`);
     }
 
-    if (!result) {
+    if (!result || !result.id) {
       throw new Error(`Failed to create task in ${platform}`);
     }
 
-    // Send additional Slack notification if configured
+    // Only send Slack notification if primary task creation succeeded
     if (platform !== 'slack' && validateIntegrationConfig('slack')) {
       try {
         await sendSlackNotification({
           ...taskParams,
           taskUrl: result.url,
         });
+        logInfo('Slack Notification', 'Additional notification sent to Slack');
       } catch (error) {
         logError('Slack Notification Error', error);
         // Don't fail the main task creation
