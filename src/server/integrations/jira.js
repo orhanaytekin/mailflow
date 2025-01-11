@@ -115,8 +115,27 @@ export const createJiraIssue = async (params) => {
               content: [{
                 type: 'text',
                 text: `Device: ${params.technicalDetails.deviceInfo.type} 
-                \n${params.technicalDetails.deviceInfo.model} 
-                \n(${params.technicalDetails.deviceInfo.osVersion})`,
+                \n${params.technicalDetails.deviceInfo.model} (${params.technicalDetails.deviceInfo.osVersion})`,
+              }],
+            }],
+          }] : []),
+          ...(params.technicalDetails?.userIdentifiers?.aid ? [{
+            type: 'listItem',
+            content: [{
+              type: 'paragraph',
+              content: [{
+                type: 'text',
+                text: `AID: ${params.technicalDetails.userIdentifiers.aid}`,
+              }],
+            }],
+          }] : []),
+          ...(params.technicalDetails?.userIdentifiers?.userId ? [{
+            type: 'listItem',
+            content: [{
+              type: 'paragraph',
+              content: [{
+                type: 'text',
+                text: `User ID: ${params.technicalDetails.userIdentifiers.userId}`,
               }],
             }],
           }] : []),

@@ -48,6 +48,9 @@ export const createNotionTask = async (params) => {
         AID: {
           rich_text: [{ text: { content: params.technicalDetails?.userIdentifiers?.aid || 'N/A' } }],
         },
+        'User ID': {
+          rich_text: [{ text: { content: params.technicalDetails?.userIdentifiers?.userId || 'N/A' } }],
+        },
         'Email ID': {
           rich_text: [{ text: { content: params.metadata?.emailId || 'N/A' } }],
         },

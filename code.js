@@ -597,7 +597,7 @@ const NOTION_API_URL = 'https://api.notion.com/v1';
 const NOTION_VERSION = '2022-06-28';
 const createNotionTask = async params => {
   try {
-    var _params$technicalDeta, _params$technicalDeta2, _params$technicalDeta3, _params$technicalDeta4, _params$technicalDeta5, _params$metadata, _params$metadata2;
+    var _params$technicalDeta, _params$technicalDeta2, _params$technicalDeta3, _params$technicalDeta4, _params$technicalDeta5, _params$technicalDeta6, _params$metadata, _params$metadata2;
     const apiKey = settings_getProperty(constants_CONFIG.PROPERTIES.NOTION_API_KEY);
     const databaseId = settings_getProperty(constants_CONFIG.PROPERTIES.NOTION_DATABASE_ID);
     if (!apiKey || !databaseId) {
@@ -671,6 +671,13 @@ const createNotionTask = async params => {
           rich_text: [{
             text: {
               content: ((_params$technicalDeta5 = params.technicalDetails) === null || _params$technicalDeta5 === void 0 || (_params$technicalDeta5 = _params$technicalDeta5.userIdentifiers) === null || _params$technicalDeta5 === void 0 ? void 0 : _params$technicalDeta5.aid) || 'N/A'
+            }
+          }]
+        },
+        'User ID': {
+          rich_text: [{
+            text: {
+              content: ((_params$technicalDeta6 = params.technicalDetails) === null || _params$technicalDeta6 === void 0 || (_params$technicalDeta6 = _params$technicalDeta6.userIdentifiers) === null || _params$technicalDeta6 === void 0 ? void 0 : _params$technicalDeta6.userId) || 'N/A'
             }
           }]
         },
@@ -907,7 +914,7 @@ const createJiraIssue = async params => {
 
     // Add metadata to description instead of custom fields
     if (params.metadata || params.technicalDetails) {
-      var _params$metadata, _params$metadata2, _params$technicalDeta, _params$technicalDeta2;
+      var _params$metadata, _params$metadata2, _params$technicalDeta, _params$technicalDeta2, _params$technicalDeta3, _params$technicalDeta4;
       description.content.push({
         type: 'bulletList',
         content: [...((_params$metadata = params.metadata) !== null && _params$metadata !== void 0 && _params$metadata.emailId ? [{
@@ -945,7 +952,25 @@ const createJiraIssue = async params => {
               type: 'text',
               text: `Device: ${params.technicalDetails.deviceInfo.type} 
                 \n${params.technicalDetails.deviceInfo.model} 
-                \n(${params.technicalDetails.deviceInfo.osVersion})`
+                (${params.technicalDetails.deviceInfo.osVersion})`
+            }]
+          }]
+        }] : []), ...((_params$technicalDeta3 = params.technicalDetails) !== null && _params$technicalDeta3 !== void 0 && (_params$technicalDeta3 = _params$technicalDeta3.userIdentifiers) !== null && _params$technicalDeta3 !== void 0 && _params$technicalDeta3.aid ? [{
+          type: 'listItem',
+          content: [{
+            type: 'paragraph',
+            content: [{
+              type: 'text',
+              text: `AID: ${params.technicalDetails.userIdentifiers.aid}`
+            }]
+          }]
+        }] : []), ...((_params$technicalDeta4 = params.technicalDetails) !== null && _params$technicalDeta4 !== void 0 && (_params$technicalDeta4 = _params$technicalDeta4.userIdentifiers) !== null && _params$technicalDeta4 !== void 0 && _params$technicalDeta4.userId ? [{
+          type: 'listItem',
+          content: [{
+            type: 'paragraph',
+            content: [{
+              type: 'text',
+              text: `User ID: ${params.technicalDetails.userIdentifiers.userId}`
             }]
           }]
         }] : [])]
