@@ -247,7 +247,7 @@ export const createWorkflowTask = async (platform, params) => {
         throw new Error(`Invalid platform: ${platform}`);
     }
 
-    if (!result || !result.id) {
+    if (!result || (platform !== 'slack' && !result.id)) {
       throw new Error(`Failed to create task in ${platform}`);
     }
 
@@ -257,8 +257,9 @@ export const createWorkflowTask = async (platform, params) => {
         await sendSlackNotification({
           ...taskParams,
           taskUrl: result.url,
+          source: platform,
         });
-        logInfo('Slack Notification', 'Additional notification sent to Slack');
+        logInfo('Slack Notification', `Additional notification sent to Slack for ${platform} task`);
       } catch (error) {
         logError('Slack Notification Error', error);
         // Don't fail the main task creation
@@ -267,8 +268,8 @@ export const createWorkflowTask = async (platform, params) => {
 
     logInfo('Task Creation', `Task created in ${platform}: ${result.id}`);
 
+    // Instead of popping to root, just show notification
     return CardService.newActionResponseBuilder()
-      .setNavigation(CardService.newNavigation().popToRoot())
       .setNotification(CardService.newNotification()
         .setText(`Successfully sent to ${CONFIG.INTEGRATIONS[platform.toUpperCase()].name}`)
         .setType(CardService.NotificationType.SUCCESS))

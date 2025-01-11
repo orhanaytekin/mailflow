@@ -951,8 +951,7 @@ const createJiraIssue = async params => {
             content: [{
               type: 'text',
               text: `Device: ${params.technicalDetails.deviceInfo.type} 
-                \n${params.technicalDetails.deviceInfo.model} 
-                (${params.technicalDetails.deviceInfo.osVersion})`
+                \n${params.technicalDetails.deviceInfo.model} (${params.technicalDetails.deviceInfo.osVersion})`
             }]
           }]
         }] : []), ...((_params$technicalDeta3 = params.technicalDetails) !== null && _params$technicalDeta3 !== void 0 && (_params$technicalDeta3 = _params$technicalDeta3.userIdentifiers) !== null && _params$technicalDeta3 !== void 0 && _params$technicalDeta3.aid ? [{
@@ -1292,136 +1291,166 @@ const showDeleteConfirmation = e => {
 
 
 
-const sendSlackNotification = async ({
-  title,
-  description,
-  priority,
-  category,
-  metadata,
-  taskUrl,
-  technicalDetails
-}) => {
+const createNotionNotification = (params, taskUrl) => {
+  var _params$technicalDeta, _params$technicalDeta2;
+  return {
+    blocks: [{
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `📝 *New Notion Task Created*\n${params.title}`
+      }
+    }, {
+      type: 'section',
+      fields: [{
+        type: 'mrkdwn',
+        text: `*Category:*\n${params.category}`
+      }, {
+        type: 'mrkdwn',
+        text: `*Priority:*\n${params.priority}`
+      }]
+    }, {
+      type: 'section',
+      fields: [...((_params$technicalDeta = params.technicalDetails) !== null && _params$technicalDeta !== void 0 && (_params$technicalDeta = _params$technicalDeta.userIdentifiers) !== null && _params$technicalDeta !== void 0 && _params$technicalDeta.userId ? [{
+        type: 'mrkdwn',
+        text: `*User ID:*\n${params.technicalDetails.userIdentifiers.userId}`
+      }] : []), ...((_params$technicalDeta2 = params.technicalDetails) !== null && _params$technicalDeta2 !== void 0 && (_params$technicalDeta2 = _params$technicalDeta2.userIdentifiers) !== null && _params$technicalDeta2 !== void 0 && _params$technicalDeta2.aid ? [{
+        type: 'mrkdwn',
+        text: `*AID:*\n${params.technicalDetails.userIdentifiers.aid}`
+      }] : [])]
+    }, ...(taskUrl ? [{
+      type: 'actions',
+      elements: [{
+        type: 'button',
+        text: {
+          type: 'plain_text',
+          text: 'View in Notion',
+          emoji: true
+        },
+        url: taskUrl
+      }]
+    }] : [])]
+  };
+};
+const createJiraNotification = (params, taskUrl) => {
+  var _params$technicalDeta3, _params$technicalDeta4, _params$technicalDeta5;
+  return {
+    blocks: [{
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `🎯 *New Jira Issue Created*\n${params.title}`
+      }
+    }, {
+      type: 'section',
+      fields: [{
+        type: 'mrkdwn',
+        text: `*Category:*\n${params.category}`
+      }, {
+        type: 'mrkdwn',
+        text: `*Priority:*\n${params.priority}`
+      }]
+    }, {
+      type: 'section',
+      fields: [...((_params$technicalDeta3 = params.technicalDetails) !== null && _params$technicalDeta3 !== void 0 && (_params$technicalDeta3 = _params$technicalDeta3.userIdentifiers) !== null && _params$technicalDeta3 !== void 0 && _params$technicalDeta3.userId ? [{
+        type: 'mrkdwn',
+        text: `*User ID:*\n${params.technicalDetails.userIdentifiers.userId}`
+      }] : []), ...((_params$technicalDeta4 = params.technicalDetails) !== null && _params$technicalDeta4 !== void 0 && (_params$technicalDeta4 = _params$technicalDeta4.userIdentifiers) !== null && _params$technicalDeta4 !== void 0 && _params$technicalDeta4.aid ? [{
+        type: 'mrkdwn',
+        text: `*AID:*\n${params.technicalDetails.userIdentifiers.aid}`
+      }] : []), ...((_params$technicalDeta5 = params.technicalDetails) !== null && _params$technicalDeta5 !== void 0 && _params$technicalDeta5.appVersion ? [{
+        type: 'mrkdwn',
+        text: `*App Version:*\n${params.technicalDetails.appVersion}`
+      }] : [])]
+    }, ...(taskUrl ? [{
+      type: 'actions',
+      elements: [{
+        type: 'button',
+        text: {
+          type: 'plain_text',
+          text: 'View in Jira',
+          emoji: true
+        },
+        url: taskUrl
+      }]
+    }] : [])]
+  };
+};
+const createDefaultNotification = params => {
+  var _params$technicalDeta6, _params$technicalDeta7, _params$technicalDeta8;
+  return {
+    blocks: [{
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `📧 *New Support Request*\n${params.title}`
+      }
+    }, {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: params.description
+      }
+    }, {
+      type: 'section',
+      fields: [{
+        type: 'mrkdwn',
+        text: `*Category:*\n${params.category}`
+      }, {
+        type: 'mrkdwn',
+        text: `*Priority:*\n${params.priority}`
+      }]
+    }, {
+      type: 'section',
+      fields: [...((_params$technicalDeta6 = params.technicalDetails) !== null && _params$technicalDeta6 !== void 0 && (_params$technicalDeta6 = _params$technicalDeta6.userIdentifiers) !== null && _params$technicalDeta6 !== void 0 && _params$technicalDeta6.userId ? [{
+        type: 'mrkdwn',
+        text: `*User ID:*\n${params.technicalDetails.userIdentifiers.userId}`
+      }] : []), ...((_params$technicalDeta7 = params.technicalDetails) !== null && _params$technicalDeta7 !== void 0 && (_params$technicalDeta7 = _params$technicalDeta7.userIdentifiers) !== null && _params$technicalDeta7 !== void 0 && _params$technicalDeta7.aid ? [{
+        type: 'mrkdwn',
+        text: `*AID:*\n${params.technicalDetails.userIdentifiers.aid}`
+      }] : []), ...((_params$technicalDeta8 = params.technicalDetails) !== null && _params$technicalDeta8 !== void 0 && _params$technicalDeta8.appVersion ? [{
+        type: 'mrkdwn',
+        text: `*App Version:*\n${params.technicalDetails.appVersion}`
+      }] : [])]
+    }]
+  };
+};
+const sendSlackNotification = async params => {
   try {
     const webhookUrl = settings_getProperty(constants_CONFIG.PROPERTIES.SLACK_WEBHOOK_URL);
-    const channel = settings_getProperty(constants_CONFIG.PROPERTIES.SLACK_CHANNEL);
     if (!webhookUrl) {
-      throw new Error(constants_CONFIG.ERROR_MESSAGES.MISSING_INTEGRATION('Slack'));
+      throw new Error('Slack webhook URL not configured');
     }
-    const blocks = [{
-      type: 'header',
-      text: {
-        type: 'plain_text',
-        text: '📧 New Support Task Created',
-        emoji: true
-      }
-    }, {
-      type: 'section',
-      fields: [{
-        type: 'mrkdwn',
-        text: `*Title:*\n${title}`
-      }, {
-        type: 'mrkdwn',
-        text: `*Priority:*\n${priority}`
-      }]
-    }, {
-      type: 'section',
-      fields: [{
-        type: 'mrkdwn',
-        text: `*Category:*\n${category}`
-      }, {
-        type: 'mrkdwn',
-        text: `*Email ID:*\n${metadata.emailId}`
-      }]
-    }];
-    if (technicalDetails) {
-      const techFields = [];
-      if (technicalDetails.appVersion) {
-        techFields.push({
-          type: 'mrkdwn',
-          text: `*App Version:*\n${technicalDetails.appVersion}`
-        });
-      }
-      if (technicalDetails.deviceInfo) {
-        const {
-          deviceInfo
-        } = technicalDetails;
-        if (deviceInfo.type) techFields.push({
-          type: 'mrkdwn',
-          text: `*Device Type:*\n${deviceInfo.type}`
-        });
-        if (deviceInfo.model) techFields.push({
-          type: 'mrkdwn',
-          text: `*Device Model:*\n${deviceInfo.model}`
-        });
-        if (deviceInfo.osVersion) techFields.push({
-          type: 'mrkdwn',
-          text: `*OS Version:*\n${deviceInfo.osVersion}`
-        });
-        if (deviceInfo.deviceId) techFields.push({
-          type: 'mrkdwn',
-          text: `*Device ID:*\n${deviceInfo.deviceId}`
-        });
-      }
-      if (technicalDetails.userIdentifiers) {
-        const {
-          userIdentifiers
-        } = technicalDetails;
-        if (userIdentifiers.userId) techFields.push({
-          type: 'mrkdwn',
-          text: `*User ID:*\n${userIdentifiers.userId}`
-        });
-        if (userIdentifiers.aid) techFields.push({
-          type: 'mrkdwn',
-          text: `*AID:*\n${userIdentifiers.aid}`
-        });
-      }
-      for (let i = 0; i < techFields.length; i += 10) {
-        blocks.push({
-          type: 'section',
-          fields: techFields.slice(i, i + 10)
-        });
-      }
+
+    // Choose template based on source
+    let payload;
+    if (params.source === 'notion' && params.taskUrl) {
+      payload = createNotionNotification(params, params.taskUrl);
+    } else if (params.source === 'jira' && params.taskUrl) {
+      payload = createJiraNotification(params, params.taskUrl);
+    } else {
+      payload = createDefaultNotification(params);
     }
-    blocks.push({
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `*Description:*\n${description}`
-      }
-    });
-    if (taskUrl) {
-      blocks.push({
-        type: 'actions',
-        elements: [{
-          type: 'button',
-          text: {
-            type: 'plain_text',
-            text: 'View Task',
-            emoji: true
-          },
-          url: taskUrl,
-          style: 'primary'
-        }]
-      });
-    }
+    logInfo('Slack Payload', payload);
     const response = await UrlFetchApp.fetch(webhookUrl, {
       method: 'post',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      muteHttpExceptions: true,
-      payload: JSON.stringify({
-        channel,
-        blocks
-      })
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
     });
     if (response.getResponseCode() !== 200) {
-      const error = response.getContentText();
-      throw new Error(`Slack API Error: ${error}`);
+      throw new Error(`Slack API Error: ${response.getContentText()}`);
     }
+    logInfo('Slack Notification Sent', {
+      source: params.source || 'direct',
+      hasTaskUrl: !!params.taskUrl
+    });
+
+    // Return a proper result object
     return {
       id: new Date().getTime().toString(),
-      url: null
+      // Use timestamp as ID
+      url: null // Slack doesn't have a direct URL to the message
     };
   } catch (error) {
     logger_logError('Send Slack Notification Error', error);
@@ -1603,7 +1632,7 @@ const createWorkflowTask = async (platform, params) => {
       default:
         throw new Error(`Invalid platform: ${platform}`);
     }
-    if (!result || !result.id) {
+    if (!result || platform !== 'slack' && !result.id) {
       throw new Error(`Failed to create task in ${platform}`);
     }
 
@@ -1612,16 +1641,19 @@ const createWorkflowTask = async (platform, params) => {
       try {
         await sendSlackNotification({
           ...taskParams,
-          taskUrl: result.url
+          taskUrl: result.url,
+          source: platform
         });
-        logInfo('Slack Notification', 'Additional notification sent to Slack');
+        logInfo('Slack Notification', `Additional notification sent to Slack for ${platform} task`);
       } catch (error) {
         logger_logError('Slack Notification Error', error);
         // Don't fail the main task creation
       }
     }
     logInfo('Task Creation', `Task created in ${platform}: ${result.id}`);
-    return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().popToRoot()).setNotification(CardService.newNotification().setText(`Successfully sent to ${constants_CONFIG.INTEGRATIONS[platform.toUpperCase()].name}`).setType(CardService.NotificationType.SUCCESS)).build();
+
+    // Instead of popping to root, just show notification
+    return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText(`Successfully sent to ${constants_CONFIG.INTEGRATIONS[platform.toUpperCase()].name}`).setType(CardService.NotificationType.SUCCESS)).build();
   } catch (error) {
     logger_logError('Create Task Error', error);
     return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText(error.message).setType(CardService.NotificationType.ERROR)).build();

@@ -1,139 +1,203 @@
 import { getProperty } from '../config/settings';
 import { CONFIG } from '../config/constants';
-import { logError } from '../utils/logger';
+import { logError, logInfo } from '../utils/logger';
 
-export const sendSlackNotification = async ({
-  title,
-  description,
-  priority,
-  category,
-  metadata,
-  taskUrl,
-  technicalDetails,
-}) => {
-  try {
-    const webhookUrl = getProperty(CONFIG.PROPERTIES.SLACK_WEBHOOK_URL);
-    const channel = getProperty(CONFIG.PROPERTIES.SLACK_CHANNEL);
-
-    if (!webhookUrl) {
-      throw new Error(CONFIG.ERROR_MESSAGES.MISSING_INTEGRATION('Slack'));
-    }
-
-    const blocks = [
-      {
-        type: 'header',
-        text: {
-          type: 'plain_text',
-          text: '📧 New Support Task Created',
-          emoji: true,
-        },
-      },
-      {
-        type: 'section',
-        fields: [
-          {
-            type: 'mrkdwn',
-            text: `*Title:*\n${title}`,
-          },
-          {
-            type: 'mrkdwn',
-            text: `*Priority:*\n${priority}`,
-          },
-        ],
-      },
-      {
-        type: 'section',
-        fields: [
-          {
-            type: 'mrkdwn',
-            text: `*Category:*\n${category}`,
-          },
-          {
-            type: 'mrkdwn',
-            text: `*Email ID:*\n${metadata.emailId}`,
-          },
-        ],
-      },
-    ];
-
-    if (technicalDetails) {
-      const techFields = [];
-
-      if (technicalDetails.appVersion) {
-        techFields.push({
-          type: 'mrkdwn',
-          text: `*App Version:*\n${technicalDetails.appVersion}`,
-        });
-      }
-
-      if (technicalDetails.deviceInfo) {
-        const { deviceInfo } = technicalDetails;
-        if (deviceInfo.type) techFields.push({ type: 'mrkdwn', text: `*Device Type:*\n${deviceInfo.type}` });
-        if (deviceInfo.model) techFields.push({ type: 'mrkdwn', text: `*Device Model:*\n${deviceInfo.model}` });
-        if (deviceInfo.osVersion) techFields.push({ type: 'mrkdwn', text: `*OS Version:*\n${deviceInfo.osVersion}` });
-        if (deviceInfo.deviceId) techFields.push({ type: 'mrkdwn', text: `*Device ID:*\n${deviceInfo.deviceId}` });
-      }
-
-      if (technicalDetails.userIdentifiers) {
-        const { userIdentifiers } = technicalDetails;
-        if (userIdentifiers.userId) techFields.push({ type: 'mrkdwn', text: `*User ID:*\n${userIdentifiers.userId}` });
-        if (userIdentifiers.aid) techFields.push({ type: 'mrkdwn', text: `*AID:*\n${userIdentifiers.aid}` });
-      }
-
-      for (let i = 0; i < techFields.length; i += 10) {
-        blocks.push({
-          type: 'section',
-          fields: techFields.slice(i, i + 10),
-        });
-      }
-    }
-
-    blocks.push({
+const createNotionNotification = (params, taskUrl) => ({
+  blocks: [
+    {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*Description:*\n${description}`,
+        text: `📝 *New Notion Task Created*\n${params.title}`,
       },
-    });
-
-    if (taskUrl) {
-      blocks.push({
-        type: 'actions',
-        elements: [
-          {
-            type: 'button',
-            text: {
-              type: 'plain_text',
-              text: 'View Task',
-              emoji: true,
-            },
-            url: taskUrl,
-            style: 'primary',
+    },
+    {
+      type: 'section',
+      fields: [
+        {
+          type: 'mrkdwn',
+          text: `*Category:*\n${params.category}`,
+        },
+        {
+          type: 'mrkdwn',
+          text: `*Priority:*\n${params.priority}`,
+        },
+      ],
+    },
+    {
+      type: 'section',
+      fields: [
+        ...(params.technicalDetails?.userIdentifiers?.userId ? [{
+          type: 'mrkdwn',
+          text: `*User ID:*\n${params.technicalDetails.userIdentifiers.userId}`,
+        }] : []),
+        ...(params.technicalDetails?.userIdentifiers?.aid ? [{
+          type: 'mrkdwn',
+          text: `*AID:*\n${params.technicalDetails.userIdentifiers.aid}`,
+        }] : []),
+      ],
+    },
+    ...(taskUrl ? [{
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: {
+            type: 'plain_text',
+            text: 'View in Notion',
+            emoji: true,
           },
-        ],
-      });
+          url: taskUrl,
+        },
+      ],
+    }] : []),
+  ],
+});
+
+const createJiraNotification = (params, taskUrl) => ({
+  blocks: [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `🎯 *New Jira Issue Created*\n${params.title}`,
+      },
+    },
+    {
+      type: 'section',
+      fields: [
+        {
+          type: 'mrkdwn',
+          text: `*Category:*\n${params.category}`,
+        },
+        {
+          type: 'mrkdwn',
+          text: `*Priority:*\n${params.priority}`,
+        },
+      ],
+    },
+    {
+      type: 'section',
+      fields: [
+        ...(params.technicalDetails?.userIdentifiers?.userId ? [{
+          type: 'mrkdwn',
+          text: `*User ID:*\n${params.technicalDetails.userIdentifiers.userId}`,
+        }] : []),
+        ...(params.technicalDetails?.userIdentifiers?.aid ? [{
+          type: 'mrkdwn',
+          text: `*AID:*\n${params.technicalDetails.userIdentifiers.aid}`,
+        }] : []),
+        ...(params.technicalDetails?.appVersion ? [{
+          type: 'mrkdwn',
+          text: `*App Version:*\n${params.technicalDetails.appVersion}`,
+        }] : []),
+      ],
+    },
+    ...(taskUrl ? [{
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: {
+            type: 'plain_text',
+            text: 'View in Jira',
+            emoji: true,
+          },
+          url: taskUrl,
+        },
+      ],
+    }] : []),
+  ],
+});
+
+const createDefaultNotification = (params) => ({
+  blocks: [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `📧 *New Support Request*\n${params.title}`,
+      },
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: params.description,
+      },
+    },
+    {
+      type: 'section',
+      fields: [
+        {
+          type: 'mrkdwn',
+          text: `*Category:*\n${params.category}`,
+        },
+        {
+          type: 'mrkdwn',
+          text: `*Priority:*\n${params.priority}`,
+        },
+      ],
+    },
+    {
+      type: 'section',
+      fields: [
+        ...(params.technicalDetails?.userIdentifiers?.userId ? [{
+          type: 'mrkdwn',
+          text: `*User ID:*\n${params.technicalDetails.userIdentifiers.userId}`,
+        }] : []),
+        ...(params.technicalDetails?.userIdentifiers?.aid ? [{
+          type: 'mrkdwn',
+          text: `*AID:*\n${params.technicalDetails.userIdentifiers.aid}`,
+        }] : []),
+        ...(params.technicalDetails?.appVersion ? [{
+          type: 'mrkdwn',
+          text: `*App Version:*\n${params.technicalDetails.appVersion}`,
+        }] : []),
+      ],
+    },
+  ],
+});
+
+export const sendSlackNotification = async (params) => {
+  try {
+    const webhookUrl = getProperty(CONFIG.PROPERTIES.SLACK_WEBHOOK_URL);
+    if (!webhookUrl) {
+      throw new Error('Slack webhook URL not configured');
     }
+
+    // Choose template based on source
+    let payload;
+    if (params.source === 'notion' && params.taskUrl) {
+      payload = createNotionNotification(params, params.taskUrl);
+    } else if (params.source === 'jira' && params.taskUrl) {
+      payload = createJiraNotification(params, params.taskUrl);
+    } else {
+      payload = createDefaultNotification(params);
+    }
+
+    logInfo('Slack Payload', payload);
 
     const response = await UrlFetchApp.fetch(webhookUrl, {
       method: 'post',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
       muteHttpExceptions: true,
-      payload: JSON.stringify({
-        channel,
-        blocks,
-      }),
     });
 
     if (response.getResponseCode() !== 200) {
-      const error = response.getContentText();
-      throw new Error(`Slack API Error: ${error}`);
+      throw new Error(`Slack API Error: ${response.getContentText()}`);
     }
 
+    logInfo('Slack Notification Sent', {
+      source: params.source || 'direct',
+      hasTaskUrl: !!params.taskUrl,
+    });
+
+    // Return a proper result object
     return {
-      id: new Date().getTime().toString(),
-      url: null,
+      id: new Date().getTime().toString(), // Use timestamp as ID
+      url: null, // Slack doesn't have a direct URL to the message
     };
   } catch (error) {
     logError('Send Slack Notification Error', error);
