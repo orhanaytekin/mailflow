@@ -1,5 +1,8 @@
 import { isDiscoveryEnabled, createEmailTrigger, deleteEmailTrigger } from '../triggers';
-import { createHomeCard } from './cards';
+import { createHomeCard, createErrorCard } from './cards';
+import { getProperty, setProperty } from '../config/settings';
+import { logError } from '../utils/logger';
+import { CONFIG } from '../config/constants';
 
 const createSetupGuideCard = () => {
   if (isDiscoveryEnabled()) {
@@ -100,4 +103,32 @@ export const disableDiscovery = () => {
       .setText(success ? 'Auto-discovery disabled' : 'Failed to disable auto-discovery')
       .setType(success ? CardService.NotificationType.SUCCESS : CardService.NotificationType.ERROR))
     .build();
+};
+
+export const toggleAutoReply = () => {
+  try {
+    if (!isDiscoveryEnabled) {
+      return CardService.newActionResponseBuilder()
+        .setNotification(CardService.newNotification()
+          .setText('Auto-reply requires Auto-Discovery to be enabled. Please enable Auto-Discovery first.')
+          .setType(CardService.NotificationType.WARNING))
+        .setNavigation(CardService.newNavigation().pushCard(createSetupGuideCard()))
+        .build();
+    }
+
+    const currentValue = getProperty(CONFIG.PROPERTIES.AUTO_REPLY_ENABLED) === 'true';
+    setProperty(CONFIG.PROPERTIES.AUTO_REPLY_ENABLED, (!currentValue).toString());
+
+    return CardService.newActionResponseBuilder()
+      .setNavigation(CardService.newNavigation().updateCard(createHomeCard()))
+      .setNotification(CardService.newNotification()
+        .setText(!currentValue
+          ? 'Auto-reply enabled - Will send automatic responses to emails'
+          : 'Auto-reply disabled - No automatic responses will be sent')
+        .setType(CardService.NotificationType.INFO))
+      .build();
+  } catch (error) {
+    logError('Toggle Auto-Reply Error', error);
+    return createErrorCard(error.message);
+  }
 };

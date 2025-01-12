@@ -40,6 +40,8 @@ function showSetupGuide() {
 function enableDiscovery() {
 }
 function disableDiscovery() {
+}
+function toggleAutoReply() {
 }var AppLib;
 /******/ (() => { // webpackBootstrap
 /******/ 	"use strict";
@@ -144,6 +146,7 @@ const constants_CONFIG = {
     NOTION_API_KEY: 'NOTION_API_KEY',
     NOTION_DATABASE_ID: 'NOTION_DATABASE_ID',
     OPENAI_API_KEY: 'OPENAI_API_KEY',
+    AUTO_REPLY_ENABLED: 'AUTO_REPLY_ENABLED',
     SLACK_WEBHOOK_URL: 'SLACK_WEBHOOK_URL',
     ACTIVE_MESSAGE_ID: 'ACTIVE_MESSAGE_ID',
     JIRA_DOMAIN: 'JIRA_DOMAIN',
@@ -203,6 +206,12 @@ const constants_CONFIG = {
         key: 'SLACK_CHANNEL',
         label: 'Channel (optional)'
       }]
+    }
+  },
+  FEATURES: {
+    AUTO_REPLY: {
+      enabled: false,
+      delaySeconds: 10
     }
   }
 };
@@ -379,6 +388,26 @@ const addLabel = async (messageId, labelName) => {
   } catch (error) {
     logError('Add Label Error', error);
     throw error;
+  }
+};
+const sendEmailReply = async (message, replyContent) => {
+  try {
+    const thread = message.getThread();
+    const replyTo = message.getFrom();
+    const subject = message.getSubject();
+
+    // Create reply with proper threading
+    GmailApp.sendEmail(replyTo, subject.startsWith('Re:') ? subject : `Re: ${subject}`, replyContent.plainText, {
+      htmlBody: replyContent.htmlBody,
+      threadId: thread.getId(),
+      replyTo: Session.getEffectiveUser().getEmail(),
+      name: constants_CONFIG.APP.NAME
+    });
+    logger_logInfo('Auto-Reply', `Sent reply to: ${replyTo}`);
+    return true;
+  } catch (error) {
+    logger_logError('Send Reply Error', error);
+    return false;
   }
 };
 ;// CONCATENATED MODULE: ./src/server/integrations/openai.js
@@ -654,6 +683,7 @@ const createErrorCard = message => {
 const createHomeCard = () => {
   const card = CardService.newCardBuilder();
   const isEnabled = triggers_isDiscoveryEnabled();
+  const isAutoReplyEnabled = settings_getProperty(constants_CONFIG.PROPERTIES.AUTO_REPLY_ENABLED) === 'true';
 
   // Add header
   card.setHeader(components_createHeader('Gmail Task Automation', 'Automate your email workflows', false));
@@ -667,11 +697,23 @@ const createHomeCard = () => {
   // Add auto-discovery section
   const discoverySection = CardService.newCardSection().setHeader('🔄 Auto-Discovery').addWidget(CardService.newTextParagraph().setText('Automatically process new emails based on filters.'));
   if (isEnabled) {
-    discoverySection.addWidget(CardService.newTextButton().setText('Disable Auto-Discovery').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setBackgroundColor('#d93025').setOnClickAction(CardService.newAction().setFunctionName('disableDiscovery'))).addWidget(CardService.newTextParagraph().setText('Currently checking every hour'));
+    discoverySection.addWidget(CardService.newTextButton().setText('Disable Auto-Discovery').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setBackgroundColor(constants_CONFIG.UI.COLORS.ERROR).setOnClickAction(CardService.newAction().setFunctionName('disableDiscovery'))).addWidget(CardService.newTextParagraph().setText('Currently checking every hour'));
   } else {
-    discoverySection.addWidget(CardService.newTextButton().setText('Enable Auto-Discovery').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setOnClickAction(CardService.newAction().setFunctionName('showSetupGuide')));
+    discoverySection.addWidget(CardService.newTextButton().setText('Enable Auto-Discovery').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setBackgroundColor(constants_CONFIG.UI.COLORS.SUCCESS).setOnClickAction(CardService.newAction().setFunctionName('showSetupGuide')));
   }
   card.addSection(discoverySection);
+
+  // Auto-reply section
+  const autoReplySection = CardService.newCardSection().setHeader('✉️ Auto-Reply').addWidget(CardService.newTextParagraph().setText((() => {
+    if (!isEnabled) {
+      return 'Auto-reply requires Auto-Discovery to be enabled first. Enable Auto-Discovery to use automatic email responses.';
+    }
+    if (isAutoReplyEnabled) {
+      return 'Auto-reply is enabled - Sending automatic responses to emails';
+    }
+    return 'Auto-reply is disabled - No automatic responses will be sent';
+  })())).addWidget(CardService.newTextButton().setText(isAutoReplyEnabled ? 'Disable Auto-Reply' : 'Enable Auto-Reply').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setBackgroundColor(isAutoReplyEnabled ? constants_CONFIG.UI.COLORS.ERROR : constants_CONFIG.UI.COLORS.SUCCESS).setDisabled(!isEnabled).setOnClickAction(CardService.newAction().setFunctionName('toggleAutoReply')));
+  card.addSection(autoReplySection);
 
   // Add selected email information
   try {
@@ -1604,7 +1646,47 @@ const sendSlackNotification = async params => {
     return false;
   }
 };
+;// CONCATENATED MODULE: ./src/server/templates/email-templates.js
+const EMAIL_TEMPLATES = {
+  IRRELEVANT_REQUEST: {
+    plainText: `Thank you for contacting us. To better assist you, please provide the following information:
+
+1. App Version
+2. Device Type and Model
+3. Operating System Version
+4. User ID or Support Code (automatically generated when clicking the support button in the app)
+
+This information will help us investigate and resolve your issue more efficiently.
+
+Best regards,
+Support Team`,
+    htmlBody: `<p>Thank you for contacting us. To better assist you, please provide the following information:</p>
+<ul>
+  <li>App Version</li>
+  <li>Device Type and Model</li>
+  <li>Operating System Version</li>
+  <li>User ID or Support Code (automatically generated when clicking the support button in the app)</li>
+</ul>
+<p>This information will help us investigate and resolve your issue more efficiently.</p>
+<p>Best regards,<br>Support Team</p>`
+  },
+  RELEVANT_REQUEST: {
+    plainText: `Thank you for reaching out to us. We have received your request and our team is looking into it.
+
+We appreciate the information you've provided and will work on addressing your request as quickly as possible.
+
+You'll receive updates as we make progress on your case.
+
+Best regards,
+Support Team`,
+    htmlBody: `<p>Thank you for reaching out to us. We have received your request and our team is looking into it.</p>
+<p>We appreciate the detailed information you've provided and will work on addressing your request as quickly as possible.</p>
+<p>You'll receive updates as we make progress on your case.</p>
+<p>Best regards,<br>Support Team</p>`
+  }
+};
 ;// CONCATENATED MODULE: ./src/server/workflows/customer-support.js
+
 
 
 
@@ -1665,10 +1747,18 @@ const customer_support_processEmail = async (message, thread) => {
   try {
     const metadata = getMessageMetadata(message);
     const analysis = await openai_analyzeEmail(metadata.subject, metadata.body);
+    const isAutoReplyEnabled = settings_getProperty(constants_CONFIG.PROPERTIES.AUTO_REPLY_ENABLED) === 'true';
+
+    // Handle auto-reply based on relevance
     if (!analysis.relevant) {
+      // Only send reply if auto-reply is enabled
+      if (isAutoReplyEnabled) {
+        await sendEmailReply(message, EMAIL_TEMPLATES.IRRELEVANT_REQUEST);
+      }
       return {
         success: false,
-        reason: analysis.reason || 'Email not relevant'
+        reason: analysis.reason || 'Email not relevant',
+        autoReplied: isAutoReplyEnabled
       };
     }
 
@@ -1732,12 +1822,18 @@ const customer_support_processEmail = async (message, thread) => {
       }
     }
 
-    // Return success if we created at least one task, even if there were some errors
+    // Only send confirmation reply if auto-reply is enabled
+    if (isAutoReplyEnabled) {
+      await sendEmailReply(message, EMAIL_TEMPLATES.RELEVANT_REQUEST);
+    }
+
+    // Return success with auto-reply status
     return {
       success: Object.keys(taskUrls).length > 0,
       analysis,
       taskUrls,
-      errors: errors.length > 0 ? errors : undefined
+      errors: errors.length > 0 ? errors : undefined,
+      autoReplied: isAutoReplyEnabled
     };
   } catch (error) {
     logger_logError('Process Email Error', error);
@@ -1767,6 +1863,9 @@ const processCustomerSupportWorkflow = async () => {
 ;// CONCATENATED MODULE: ./src/server/ui/handlers.js
 
 
+
+
+
 const createSetupGuideCard = () => {
   if (triggers_isDiscoveryEnabled()) {
     const card = CardService.newCardBuilder();
@@ -1788,6 +1887,19 @@ const enableDiscovery = () => {
 const disableDiscovery = () => {
   const success = deleteEmailTrigger();
   return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().updateCard(createHomeCard())).setNotification(CardService.newNotification().setText(success ? 'Auto-discovery disabled' : 'Failed to disable auto-discovery').setType(success ? CardService.NotificationType.SUCCESS : CardService.NotificationType.ERROR)).build();
+};
+const toggleAutoReply = () => {
+  try {
+    if (!triggers_isDiscoveryEnabled) {
+      return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText('Auto-reply requires Auto-Discovery to be enabled. Please enable Auto-Discovery first.').setType(CardService.NotificationType.WARNING)).setNavigation(CardService.newNavigation().pushCard(createSetupGuideCard())).build();
+    }
+    const currentValue = settings_getProperty(constants_CONFIG.PROPERTIES.AUTO_REPLY_ENABLED) === 'true';
+    setProperty(constants_CONFIG.PROPERTIES.AUTO_REPLY_ENABLED, (!currentValue).toString());
+    return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().updateCard(createHomeCard())).setNotification(CardService.newNotification().setText(!currentValue ? 'Auto-reply enabled - Will send automatic responses to emails' : 'Auto-reply disabled - No automatic responses will be sent').setType(CardService.NotificationType.INFO)).build();
+  } catch (error) {
+    logger_logError('Toggle Auto-Reply Error', error);
+    return createErrorCard(error.message);
+  }
 };
 ;// CONCATENATED MODULE: ./src/server/mail.js
 
@@ -2234,6 +2346,7 @@ __webpack_require__.g.processNewEmails = processNewEmails;
 __webpack_require__.g.showSetupGuide = showSetupGuide;
 __webpack_require__.g.enableDiscovery = enableDiscovery;
 __webpack_require__.g.disableDiscovery = disableDiscovery;
+__webpack_require__.g.toggleAutoReply = toggleAutoReply;
 AppLib = __webpack_exports__;
 /******/ })()
 ;

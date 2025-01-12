@@ -1,6 +1,6 @@
 import { CONFIG } from '../config/constants';
 import { getProperty } from '../config/settings';
-import { logError } from './logger';
+import { logError, logInfo } from './logger';
 
 export const getCurrentMessage = () => {
   const messageId = getProperty(CONFIG.PROPERTIES.ACTIVE_MESSAGE_ID);
@@ -39,5 +39,32 @@ export const addLabel = async (messageId, labelName) => {
   } catch (error) {
     logError('Add Label Error', error);
     throw error;
+  }
+};
+
+export const sendEmailReply = async (message, replyContent) => {
+  try {
+    const thread = message.getThread();
+    const replyTo = message.getFrom();
+    const subject = message.getSubject();
+
+    // Create reply with proper threading
+    GmailApp.sendEmail(
+      replyTo,
+      subject.startsWith('Re:') ? subject : `Re: ${subject}`,
+      replyContent.plainText,
+      {
+        htmlBody: replyContent.htmlBody,
+        threadId: thread.getId(),
+        replyTo: Session.getEffectiveUser().getEmail(),
+        name: CONFIG.APP.NAME,
+      },
+    );
+
+    logInfo('Auto-Reply', `Sent reply to: ${replyTo}`);
+    return true;
+  } catch (error) {
+    logError('Send Reply Error', error);
+    return false;
   }
 };

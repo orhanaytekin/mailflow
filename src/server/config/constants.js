@@ -40,6 +40,7 @@ export const CONFIG = {
     NOTION_API_KEY: 'NOTION_API_KEY',
     NOTION_DATABASE_ID: 'NOTION_DATABASE_ID',
     OPENAI_API_KEY: 'OPENAI_API_KEY',
+    AUTO_REPLY_ENABLED: 'AUTO_REPLY_ENABLED',
     SLACK_WEBHOOK_URL: 'SLACK_WEBHOOK_URL',
     ACTIVE_MESSAGE_ID: 'ACTIVE_MESSAGE_ID',
     JIRA_DOMAIN: 'JIRA_DOMAIN',
@@ -87,6 +88,13 @@ export const CONFIG = {
         { key: 'SLACK_WEBHOOK_URL', label: 'Webhook URL' },
         { key: 'SLACK_CHANNEL', label: 'Channel (optional)' },
       ],
+    },
+  },
+
+  FEATURES: {
+    AUTO_REPLY: {
+      enabled: false,
+      delaySeconds: 10,
     },
   },
 };

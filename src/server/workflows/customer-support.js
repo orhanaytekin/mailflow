@@ -1,4 +1,4 @@
-import { getCurrentMessage, getMessageMetadata } from '../utils/gmail';
+import { getCurrentMessage, getMessageMetadata, sendEmailReply } from '../utils/gmail';
 import { analyzeEmail } from '../integrations/openai';
 import { createNotionTask } from '../integrations/notion';
 import { createJiraIssue } from '../integrations/jira';
@@ -9,8 +9,10 @@ import { sendSlackNotification } from '../integrations/slack';
 import {
   validateWorkflowConfig,
   getConfiguredPlatforms,
+  getProperty,
 } from '../config/settings';
 import { createIntegrationSettingsCard } from '../ui/settings';
+import { EMAIL_TEMPLATES } from '../templates/email-templates';
 
 export const createWorkflowTask = async (platform, params) => {
   try {
@@ -61,11 +63,19 @@ export const processEmail = async (message, thread) => {
   try {
     const metadata = getMessageMetadata(message);
     const analysis = await analyzeEmail(metadata.subject, metadata.body);
+    const isAutoReplyEnabled = getProperty(CONFIG.PROPERTIES.AUTO_REPLY_ENABLED) === 'true';
 
+    // Handle auto-reply based on relevance
     if (!analysis.relevant) {
+      // Only send reply if auto-reply is enabled
+      if (isAutoReplyEnabled) {
+        await sendEmailReply(message, EMAIL_TEMPLATES.IRRELEVANT_REQUEST);
+      }
+
       return {
         success: false,
         reason: analysis.reason || 'Email not relevant',
+        autoReplied: isAutoReplyEnabled,
       };
     }
 
@@ -132,12 +142,18 @@ export const processEmail = async (message, thread) => {
       }
     }
 
-    // Return success if we created at least one task, even if there were some errors
+    // Only send confirmation reply if auto-reply is enabled
+    if (isAutoReplyEnabled) {
+      await sendEmailReply(message, EMAIL_TEMPLATES.RELEVANT_REQUEST);
+    }
+
+    // Return success with auto-reply status
     return {
       success: Object.keys(taskUrls).length > 0,
       analysis,
       taskUrls,
       errors: errors.length > 0 ? errors : undefined,
+      autoReplied: isAutoReplyEnabled,
     };
   } catch (error) {
     logError('Process Email Error', error);

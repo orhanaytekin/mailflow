@@ -12,7 +12,9 @@ import {
 } from './server/ui/settings';
 import { handleDeleteIntegration, showDeleteConfirmation } from './server/ui/settings-handlers';
 import { processCustomerSupportWorkflow, createWorkflowTask } from './server/workflows/customer-support';
-import { showSetupGuide, enableDiscovery, disableDiscovery } from './server/ui/handlers';
+import {
+  showSetupGuide, enableDiscovery, disableDiscovery, toggleAutoReply,
+} from './server/ui/handlers';
 import { setProperty } from './server/config/settings';
 import { CONFIG } from './server/config/constants';
 import { logInfo } from './server/utils/logger';
@@ -114,3 +116,5 @@ global.processNewEmails = processNewEmails;
 global.showSetupGuide = showSetupGuide;
 global.enableDiscovery = enableDiscovery;
 global.disableDiscovery = disableDiscovery;
+
+global.toggleAutoReply = toggleAutoReply;

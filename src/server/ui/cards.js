@@ -4,7 +4,7 @@ import {
 } from './components';
 import { getCurrentMessage, getMessageMetadata } from '../utils/gmail';
 import { analyzeEmail } from '../integrations/openai';
-import { validateIntegrationConfig, getConfiguredPlatforms } from '../config/settings';
+import { validateIntegrationConfig, getConfiguredPlatforms, getProperty } from '../config/settings';
 import { logError } from '../utils/logger';
 import { isDiscoveryEnabled } from '../triggers';
 
@@ -23,6 +23,7 @@ export const createErrorCard = (message) => {
 export const createHomeCard = () => {
   const card = CardService.newCardBuilder();
   const isEnabled = isDiscoveryEnabled();
+  const isAutoReplyEnabled = getProperty(CONFIG.PROPERTIES.AUTO_REPLY_ENABLED) === 'true';
 
   // Add header
   card.setHeader(createHeader('Gmail Task Automation', 'Automate your email workflows', false));
@@ -44,7 +45,7 @@ export const createHomeCard = () => {
       .addWidget(CardService.newTextButton()
         .setText('Disable Auto-Discovery')
         .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
-        .setBackgroundColor('#d93025')
+        .setBackgroundColor(CONFIG.UI.COLORS.ERROR)
         .setOnClickAction(CardService.newAction().setFunctionName('disableDiscovery')))
       .addWidget(CardService.newTextParagraph()
         .setText('Currently checking every hour'));
@@ -53,10 +54,33 @@ export const createHomeCard = () => {
       .addWidget(CardService.newTextButton()
         .setText('Enable Auto-Discovery')
         .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+        .setBackgroundColor(CONFIG.UI.COLORS.SUCCESS)
         .setOnClickAction(CardService.newAction().setFunctionName('showSetupGuide')));
   }
 
   card.addSection(discoverySection);
+
+  // Auto-reply section
+  const autoReplySection = CardService.newCardSection()
+    .setHeader('✉️ Auto-Reply')
+    .addWidget(CardService.newTextParagraph()
+      .setText((() => {
+        if (!isEnabled) {
+          return 'Auto-reply requires Auto-Discovery to be enabled first. Enable Auto-Discovery to use automatic email responses.';
+        }
+        if (isAutoReplyEnabled) {
+          return 'Auto-reply is enabled - Sending automatic responses to emails';
+        }
+        return 'Auto-reply is disabled - No automatic responses will be sent';
+      })()))
+    .addWidget(CardService.newTextButton()
+      .setText(isAutoReplyEnabled ? 'Disable Auto-Reply' : 'Enable Auto-Reply')
+      .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+      .setBackgroundColor(isAutoReplyEnabled ? CONFIG.UI.COLORS.ERROR : CONFIG.UI.COLORS.SUCCESS)
+      .setDisabled(!isEnabled)
+      .setOnClickAction(CardService.newAction().setFunctionName('toggleAutoReply')));
+
+  card.addSection(autoReplySection);
 
   // Add selected email information
   try {

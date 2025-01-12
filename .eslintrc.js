@@ -28,7 +28,7 @@ module.exports = {
     'no-console': 'off',
     'no-restricted-globals': 'off',
     'import/extensions': 'off',
-    'max-len': ['error', { code: 120 }],
+    'max-len': ['error', { code: 200 }],
     'no-redeclare': ['error', { builtinGlobals: false }]
   }
 }; 
