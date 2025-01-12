@@ -6,7 +6,7 @@ export const CONFIG = {
   },
 
   LABELS: {
-    DISCOVERY: 'MailFlow: Auto-Discovery',
+    DISCOVERY: 'MailFlow: Discovery',
     PROCESSED: 'MailFlow: Processed',
     SKIPPED: 'MailFlow: Skipped',
   },
@@ -15,7 +15,7 @@ export const CONFIG = {
     CUSTOMER_SUPPORT: {
       id: 'CUSTOMER_SUPPORT',
       name: 'Customer Support',
-      description: 'Handle customer support requests and inquiries',
+      description: 'AI-powered customer support request handling',
       requiredIntegrations: ['openai'],
       taskPlatforms: ['notion', 'jira', 'slack'],
       defaultPlatform: 'notion',
@@ -52,7 +52,7 @@ export const CONFIG = {
 
   ERROR_MESSAGES: {
     NO_EMAIL_SELECTED: 'No email selected. Please select an email first.',
-    MISSING_INTEGRATION: (integration) => `${integration} integration not configured. Please configure it in settings.`,
+    MISSING_INTEGRATION: (integration) => `${integration} integration not configured. Please set it up in MailFlow Settings.`,
     ANALYSIS_FAILED: 'Failed to analyze email. Please try again.',
     TASK_CREATION_FAILED: 'Failed to create task. Please try again.',
     DELETE_FAILED: 'Failed to delete integration settings. Please try again.',
@@ -95,6 +95,33 @@ export const CONFIG = {
     AUTO_REPLY: {
       enabled: false,
       delaySeconds: 10,
+    },
+  },
+
+  EMAIL_TEMPLATES: {
+    IRRELEVANT_REQUEST: {
+      subject: (originalSubject) => `Re: ${originalSubject}`,
+      body: `
+        Thank you for your email. This is an automated response from MailFlow AI.
+        
+        We've received your message but it appears to be outside our standard workflow.
+        A team member will review and respond if needed.
+        
+        Best regards,
+        MailFlow AI
+      `,
+    },
+    RELEVANT_REQUEST: {
+      subject: (originalSubject) => `Re: ${originalSubject}`,
+      body: `
+        Thank you for your email. This is an automated response from MailFlow AI.
+        
+        We've received your request and it's being processed.
+        Our team will handle it according to our workflow.
+        
+        Best regards,
+        MailFlow AI
+      `,
     },
   },
 };

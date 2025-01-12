@@ -8,14 +8,14 @@ const createSetupGuideCard = () => {
   if (isDiscoveryEnabled()) {
     const card = CardService.newCardBuilder();
     card.setHeader(CardService.newCardHeader()
-      .setTitle('Auto-Discovery Already Enabled')
+      .setTitle('Email Discovery Active')
       .setImageStyle(CardService.ImageStyle.SQUARE)
       .setImageUrl('https://www.gstatic.com/images/icons/material/system/1x/warning_black_24dp.png'));
 
     const warningSection = CardService.newCardSection()
       .addWidget(CardService.newTextParagraph()
         .setText(
-          'Auto-discovery is already enabled with hourly checks. '
+          'Email discovery is already active with hourly checks. '
           + 'Please disable it first if you want to change settings.',
         ))
       .addWidget(CardService.newButtonSet()
@@ -57,7 +57,7 @@ const createSetupGuideCard = () => {
     .addWidget(CardService.newTextParagraph()
       .setText('   • Check "Star it"'))
     .addWidget(CardService.newTextParagraph()
-      .setText('   • Check "Apply label" and select "Auto-Discovery"'))
+      .setText('   • Check "Apply label" and select "MailFlow: Discovery"'))
     .addWidget(CardService.newTextParagraph()
       .setText('7. Click "Create filter"'))
     .addWidget(CardService.newDivider())
@@ -97,10 +97,16 @@ export const enableDiscovery = () => {
 
 export const disableDiscovery = () => {
   const success = deleteEmailTrigger();
+  if (success) {
+    setProperty(CONFIG.PROPERTIES.AUTO_REPLY_ENABLED, 'false');
+  }
+
   return CardService.newActionResponseBuilder()
     .setNavigation(CardService.newNavigation().updateCard(createHomeCard()))
     .setNotification(CardService.newNotification()
-      .setText(success ? 'Auto-discovery disabled' : 'Failed to disable auto-discovery')
+      .setText(success
+        ? 'Email discovery and auto-replies disabled'
+        : 'Failed to disable email discovery')
       .setType(success ? CardService.NotificationType.SUCCESS : CardService.NotificationType.ERROR))
     .build();
 };
@@ -123,8 +129,8 @@ export const toggleAutoReply = () => {
       .setNavigation(CardService.newNavigation().updateCard(createHomeCard()))
       .setNotification(CardService.newNotification()
         .setText(!currentValue
-          ? 'Auto-reply enabled - Will send automatic responses to emails'
-          : 'Auto-reply disabled - No automatic responses will be sent')
+          ? 'Smart replies enabled - AI will handle email responses'
+          : 'Smart replies disabled - No automatic responses will be sent')
         .setType(CardService.NotificationType.INFO))
       .build();
   } catch (error) {

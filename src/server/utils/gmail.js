@@ -18,6 +18,7 @@ export const getCurrentMessage = () => {
 
 export const getMessageMetadata = (message) => ({
   id: message.getId(),
+  messageId: message.getId(),
   threadId: message.getThread().getId(),
   subject: message.getSubject(),
   sender: message.getFrom(),
@@ -25,6 +26,11 @@ export const getMessageMetadata = (message) => ({
   date: message.getDate(),
   body: message.getPlainBody(),
   hasAttachments: message.getAttachments().length > 0,
+  headers: {
+    messageId: message.getHeader('Message-ID'),
+    references: message.getHeader('References'),
+    inReplyTo: message.getHeader('In-Reply-To'),
+  },
 });
 
 export const addLabel = async (messageId, labelName) => {
@@ -42,29 +48,24 @@ export const addLabel = async (messageId, labelName) => {
   }
 };
 
-export const sendEmailReply = async (message, replyContent) => {
+export const sendEmailReply = async (originalMessage, template) => {
   try {
-    const thread = message.getThread();
-    const replyTo = message.getFrom();
-    const subject = message.getSubject();
+    const metadata = getMessageMetadata(originalMessage);
 
-    // Create reply with proper threading
-    GmailApp.sendEmail(
-      replyTo,
-      subject.startsWith('Re:') ? subject : `Re: ${subject}`,
-      replyContent.plainText,
+    // Use Gmail's native reply functionality
+    const thread = originalMessage.getThread();
+    thread.reply(
+      template.plainText.trim(),
       {
-        htmlBody: replyContent.htmlBody,
-        threadId: thread.getId(),
-        replyTo: Session.getEffectiveUser().getEmail(),
+        htmlBody: template.htmlBody.trim(),
         name: CONFIG.APP.NAME,
       },
     );
 
-    logInfo('Auto-Reply', `Sent reply to: ${replyTo}`);
+    logInfo('Email Reply Sent', `Replied to ${metadata.subject || '(no subject)'}`);
     return true;
   } catch (error) {
-    logError('Send Reply Error', error);
+    logError('Send Email Reply Error', error);
     return false;
   }
 };

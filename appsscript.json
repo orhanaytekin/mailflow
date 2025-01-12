@@ -23,7 +23,7 @@
   ],
   "addOns": {
     "common": {
-      "name": "Gmail Task Automation",
+      "name": "MailFlow AI",
       "logoUrl": "https://www.gstatic.com/images/icons/material/system/1x/task_alt_black_24dp.png",
       "layoutProperties": {
         "primaryColor": "#4285f4"

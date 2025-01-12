@@ -110,20 +110,20 @@ __webpack_require__.d(__webpack_exports__, {
 ;// CONCATENATED MODULE: ./src/server/config/constants.js
 const constants_CONFIG = {
   APP: {
-    NAME: 'Gmail Task Automation',
+    NAME: 'MailFlow AI',
     VERSION: '1.0.0',
-    DESCRIPTION: 'Automate task creation from Gmail emails'
+    DESCRIPTION: 'AI-powered email workflow automation'
   },
   LABELS: {
-    DISCOVERY: 'Auto-Discovery',
-    PROCESSED: 'Processed by Automation',
-    SKIPPED: 'Skipped by Automation'
+    DISCOVERY: 'MailFlow: Discovery',
+    PROCESSED: 'MailFlow: Processed',
+    SKIPPED: 'MailFlow: Skipped'
   },
   WORKFLOWS: {
     CUSTOMER_SUPPORT: {
       id: 'CUSTOMER_SUPPORT',
       name: 'Customer Support',
-      description: 'Handle customer support requests and inquiries',
+      description: 'AI-powered customer support request handling',
       requiredIntegrations: ['openai'],
       taskPlatforms: ['notion', 'jira', 'slack'],
       defaultPlatform: 'notion'
@@ -157,7 +157,7 @@ const constants_CONFIG = {
   },
   ERROR_MESSAGES: {
     NO_EMAIL_SELECTED: 'No email selected. Please select an email first.',
-    MISSING_INTEGRATION: integration => `${integration} integration not configured. Please configure it in settings.`,
+    MISSING_INTEGRATION: integration => `${integration} integration not configured. Please set it up in MailFlow Settings.`,
     ANALYSIS_FAILED: 'Failed to analyze email. Please try again.',
     TASK_CREATION_FAILED: 'Failed to create task. Please try again.',
     DELETE_FAILED: 'Failed to delete integration settings. Please try again.',
@@ -212,6 +212,32 @@ const constants_CONFIG = {
     AUTO_REPLY: {
       enabled: false,
       delaySeconds: 10
+    }
+  },
+  EMAIL_TEMPLATES: {
+    IRRELEVANT_REQUEST: {
+      subject: originalSubject => `Re: ${originalSubject}`,
+      body: `
+        Thank you for your email. This is an automated response from MailFlow AI.
+        
+        We've received your message but it appears to be outside our standard workflow.
+        A team member will review and respond if needed.
+        
+        Best regards,
+        MailFlow AI
+      `
+    },
+    RELEVANT_REQUEST: {
+      subject: originalSubject => `Re: ${originalSubject}`,
+      body: `
+        Thank you for your email. This is an automated response from MailFlow AI.
+        
+        We've received your request and it's being processed.
+        Our team will handle it according to our workflow.
+        
+        Best regards,
+        MailFlow AI
+      `
     }
   }
 };
@@ -369,13 +395,19 @@ const getCurrentMessage = () => {
 };
 const getMessageMetadata = message => ({
   id: message.getId(),
+  messageId: message.getId(),
   threadId: message.getThread().getId(),
   subject: message.getSubject(),
   sender: message.getFrom(),
   recipient: message.getTo(),
   date: message.getDate(),
   body: message.getPlainBody(),
-  hasAttachments: message.getAttachments().length > 0
+  hasAttachments: message.getAttachments().length > 0,
+  headers: {
+    messageId: message.getHeader('Message-ID'),
+    references: message.getHeader('References'),
+    inReplyTo: message.getHeader('In-Reply-To')
+  }
 });
 const addLabel = async (messageId, labelName) => {
   try {
@@ -390,23 +422,20 @@ const addLabel = async (messageId, labelName) => {
     throw error;
   }
 };
-const sendEmailReply = async (message, replyContent) => {
+const sendEmailReply = async (originalMessage, template) => {
   try {
-    const thread = message.getThread();
-    const replyTo = message.getFrom();
-    const subject = message.getSubject();
+    const metadata = getMessageMetadata(originalMessage);
 
-    // Create reply with proper threading
-    GmailApp.sendEmail(replyTo, subject.startsWith('Re:') ? subject : `Re: ${subject}`, replyContent.plainText, {
-      htmlBody: replyContent.htmlBody,
-      threadId: thread.getId(),
-      replyTo: Session.getEffectiveUser().getEmail(),
+    // Use Gmail's native reply functionality
+    const thread = originalMessage.getThread();
+    thread.reply(template.plainText.trim(), {
+      htmlBody: template.htmlBody.trim(),
       name: constants_CONFIG.APP.NAME
     });
-    logger_logInfo('Auto-Reply', `Sent reply to: ${replyTo}`);
+    logger_logInfo('Email Reply Sent', `Replied to ${metadata.subject || '(no subject)'}`);
     return true;
   } catch (error) {
-    logger_logError('Send Reply Error', error);
+    logger_logError('Send Email Reply Error', error);
     return false;
   }
 };
@@ -686,7 +715,7 @@ const createHomeCard = () => {
   const isAutoReplyEnabled = settings_getProperty(constants_CONFIG.PROPERTIES.AUTO_REPLY_ENABLED) === 'true';
 
   // Add header
-  card.setHeader(components_createHeader('Gmail Task Automation', 'Automate your email workflows', false));
+  card.setHeader(components_createHeader('MailFlow AI', 'Automate your email workflows', false));
 
   // Add settings button in its own section
   const settingsSection = createHeaderSection(true);
@@ -695,7 +724,7 @@ const createHomeCard = () => {
   }
 
   // Add auto-discovery section
-  const discoverySection = CardService.newCardSection().setHeader('🔄 Auto-Discovery').addWidget(CardService.newTextParagraph().setText('Automatically process new emails based on filters.'));
+  const discoverySection = CardService.newCardSection().setHeader('🔍 Email Discovery').addWidget(CardService.newTextParagraph().setText('Automatically process new emails based on filters.'));
   if (isEnabled) {
     discoverySection.addWidget(CardService.newTextButton().setText('Disable Auto-Discovery').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setBackgroundColor(constants_CONFIG.UI.COLORS.ERROR).setOnClickAction(CardService.newAction().setFunctionName('disableDiscovery'))).addWidget(CardService.newTextParagraph().setText('Currently checking every hour'));
   } else {
@@ -709,9 +738,9 @@ const createHomeCard = () => {
       return 'Auto-reply requires Auto-Discovery to be enabled first. Enable Auto-Discovery to use automatic email responses.';
     }
     if (isAutoReplyEnabled) {
-      return 'Auto-reply is enabled - Sending automatic responses to emails';
+      return 'Smart replies enabled - Automatic responses active';
     }
-    return 'Auto-reply is disabled - No automatic responses will be sent';
+    return 'Smart replies disabled - No automatic responses';
   })())).addWidget(CardService.newTextButton().setText(isAutoReplyEnabled ? 'Disable Auto-Reply' : 'Enable Auto-Reply').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setBackgroundColor(isAutoReplyEnabled ? constants_CONFIG.UI.COLORS.ERROR : constants_CONFIG.UI.COLORS.SUCCESS).setDisabled(!isEnabled).setOnClickAction(CardService.newAction().setFunctionName('toggleAutoReply')));
   card.addSection(autoReplySection);
 
@@ -1351,7 +1380,7 @@ const checkJiraSetup = async () => {
 
 const createIntegrationSettingsCard = () => {
   const card = CardService.newCardBuilder();
-  card.setHeader(components_createHeader('Integration Settings', null, false));
+  card.setHeader(CardService.newCardHeader().setTitle('MailFlow Settings').setImageStyle(CardService.ImageStyle.SQUARE).setImageUrl(constants_CONFIG.UI.ICONS.SETTINGS));
 
   // Create sections for each integration
   Object.entries(constants_CONFIG.INTEGRATIONS).forEach(([key, integration]) => {
@@ -1649,40 +1678,59 @@ const sendSlackNotification = async params => {
 ;// CONCATENATED MODULE: ./src/server/templates/email-templates.js
 const EMAIL_TEMPLATES = {
   IRRELEVANT_REQUEST: {
-    plainText: `Thank you for contacting us. To better assist you, please provide the following information:
-
-1. App Version
-2. Device Type and Model
-3. Operating System Version
-4. User ID or Support Code (automatically generated when clicking the support button in the app)
-
-This information will help us investigate and resolve your issue more efficiently.
-
-Best regards,
-Support Team`,
-    htmlBody: `<p>Thank you for contacting us. To better assist you, please provide the following information:</p>
-<ul>
-  <li>App Version</li>
-  <li>Device Type and Model</li>
-  <li>Operating System Version</li>
-  <li>User ID or Support Code (automatically generated when clicking the support button in the app)</li>
-</ul>
-<p>This information will help us investigate and resolve your issue more efficiently.</p>
-<p>Best regards,<br>Support Team</p>`
+    plainText: `
+      Thank you for your email. This is an automated response from MailFlow AI.
+      
+      To better assist you, please provide the following information:
+      
+      1. App Version
+      2. Device Type and Model
+      3. Operating System Version
+      4. User ID or Support Code
+      
+      This information will help us investigate and resolve your issue more efficiently.
+      
+      Best regards,
+      MailFlow AI
+    `,
+    htmlBody: `
+      <p>Thank you for your email. This is an automated response from MailFlow AI.</p>
+      <p>To better assist you, please provide the following information:</p>
+      <ul>
+        <li>App Version</li>
+        <li>Device Type and Model</li>
+        <li>Operating System Version</li>
+        <li>User ID or Support Code</li>
+      </ul>
+      <p>This information will help us investigate and resolve your issue more efficiently.</p>
+      <p>Best regards,<br>MailFlow AI</p>
+    `
   },
   RELEVANT_REQUEST: {
-    plainText: `Thank you for reaching out to us. We have received your request and our team is looking into it.
-
-We appreciate the information you've provided and will work on addressing your request as quickly as possible.
-
-You'll receive updates as we make progress on your case.
-
-Best regards,
-Support Team`,
-    htmlBody: `<p>Thank you for reaching out to us. We have received your request and our team is looking into it.</p>
-<p>We appreciate the detailed information you've provided and will work on addressing your request as quickly as possible.</p>
-<p>You'll receive updates as we make progress on your case.</p>
-<p>Best regards,<br>Support Team</p>`
+    plainText: `
+      Thank you for your email. This is an automated response from MailFlow AI.
+      
+      We have received your request and our team is looking into it.
+      
+      We appreciate the detailed information you've provided and will work on addressing 
+      your request as quickly as possible. You'll receive updates as we make progress.
+      
+      Best regards,
+      MailFlow AI
+    `,
+    htmlBody: `
+      <div style="font-family: Arial, sans-serif; color: #333;">
+        <p>Thank you for your email. This is an automated response from MailFlow AI.</p>
+        
+        <p>We have received your request and our team is looking into it.</p>
+        
+        <p>We appreciate the detailed information you've provided and will work on addressing 
+        your request as quickly as possible. You'll receive updates as we make progress.</p>
+        
+        <p>Best regards,<br>
+        <strong>MailFlow AI</strong></p>
+      </div>
+    `
   }
 };
 ;// CONCATENATED MODULE: ./src/server/workflows/customer-support.js
@@ -1869,13 +1917,13 @@ const processCustomerSupportWorkflow = async () => {
 const createSetupGuideCard = () => {
   if (triggers_isDiscoveryEnabled()) {
     const card = CardService.newCardBuilder();
-    card.setHeader(CardService.newCardHeader().setTitle('Auto-Discovery Already Enabled').setImageStyle(CardService.ImageStyle.SQUARE).setImageUrl('https://www.gstatic.com/images/icons/material/system/1x/warning_black_24dp.png'));
-    const warningSection = CardService.newCardSection().addWidget(CardService.newTextParagraph().setText('Auto-discovery is already enabled with hourly checks. ' + 'Please disable it first if you want to change settings.')).addWidget(CardService.newButtonSet().addButton(CardService.newTextButton().setText('Disable Auto-Discovery').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setBackgroundColor('#d93025').setOnClickAction(CardService.newAction().setFunctionName('disableDiscovery'))).addButton(CardService.newTextButton().setText('Back to Home').setOnClickAction(CardService.newAction().setFunctionName('onHomepage'))));
+    card.setHeader(CardService.newCardHeader().setTitle('Email Discovery Active').setImageStyle(CardService.ImageStyle.SQUARE).setImageUrl('https://www.gstatic.com/images/icons/material/system/1x/warning_black_24dp.png'));
+    const warningSection = CardService.newCardSection().addWidget(CardService.newTextParagraph().setText('Email discovery is already active with hourly checks. ' + 'Please disable it first if you want to change settings.')).addWidget(CardService.newButtonSet().addButton(CardService.newTextButton().setText('Disable Auto-Discovery').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setBackgroundColor('#d93025').setOnClickAction(CardService.newAction().setFunctionName('disableDiscovery'))).addButton(CardService.newTextButton().setText('Back to Home').setOnClickAction(CardService.newAction().setFunctionName('onHomepage'))));
     return card.addSection(warningSection).build();
   }
   const card = CardService.newCardBuilder();
   card.setHeader(CardService.newCardHeader().setTitle('Auto-Discovery Setup Guide').setImageStyle(CardService.ImageStyle.SQUARE).setImageUrl('https://www.gstatic.com/images/icons/material/system/1x/help_outline_black_24dp.png'));
-  const guideSection = CardService.newCardSection().setHeader('📋 Required Steps').addWidget(CardService.newTextParagraph().setText('To complete auto-discovery setup, create a Gmail filter:')).addWidget(CardService.newTextParagraph().setText('1. Go to Gmail settings (⚙️) > "See all settings"')).addWidget(CardService.newTextParagraph().setText('2. Go to "Filters and Blocked Addresses" tab')).addWidget(CardService.newTextParagraph().setText('3. Click "Create a new filter"')).addWidget(CardService.newTextParagraph().setText('4. Set your conditions (e.g., from specific domains)')).addWidget(CardService.newTextParagraph().setText('5. Click "Create filter"')).addWidget(CardService.newTextParagraph().setText('6. In the actions:')).addWidget(CardService.newTextParagraph().setText('   • Check "Star it"')).addWidget(CardService.newTextParagraph().setText('   • Check "Apply label" and select "Auto-Discovery"')).addWidget(CardService.newTextParagraph().setText('7. Click "Create filter"')).addWidget(CardService.newDivider()).addWidget(CardService.newTextParagraph().setText('Emails matching your filter will be processed automatically based on your settings.'));
+  const guideSection = CardService.newCardSection().setHeader('📋 Required Steps').addWidget(CardService.newTextParagraph().setText('To complete auto-discovery setup, create a Gmail filter:')).addWidget(CardService.newTextParagraph().setText('1. Go to Gmail settings (⚙️) > "See all settings"')).addWidget(CardService.newTextParagraph().setText('2. Go to "Filters and Blocked Addresses" tab')).addWidget(CardService.newTextParagraph().setText('3. Click "Create a new filter"')).addWidget(CardService.newTextParagraph().setText('4. Set your conditions (e.g., from specific domains)')).addWidget(CardService.newTextParagraph().setText('5. Click "Create filter"')).addWidget(CardService.newTextParagraph().setText('6. In the actions:')).addWidget(CardService.newTextParagraph().setText('   • Check "Star it"')).addWidget(CardService.newTextParagraph().setText('   • Check "Apply label" and select "MailFlow: Discovery"')).addWidget(CardService.newTextParagraph().setText('7. Click "Create filter"')).addWidget(CardService.newDivider()).addWidget(CardService.newTextParagraph().setText('Emails matching your filter will be processed automatically based on your settings.'));
   const actionSection = CardService.newCardSection().addWidget(CardService.newTextButton().setText('Create Gmail Filter').setOpenLink(CardService.newOpenLink().setUrl('https://mail.google.com/mail/u/0/#settings/filters'))).addWidget(CardService.newDivider()).addWidget(CardService.newTextButton().setText('Enable Auto-Discovery').setTextButtonStyle(CardService.TextButtonStyle.FILLED).setOnClickAction(CardService.newAction().setFunctionName('enableDiscovery')));
   return card.addSection(guideSection).addSection(actionSection).build();
 };
@@ -1886,7 +1934,10 @@ const enableDiscovery = () => {
 };
 const disableDiscovery = () => {
   const success = deleteEmailTrigger();
-  return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().updateCard(createHomeCard())).setNotification(CardService.newNotification().setText(success ? 'Auto-discovery disabled' : 'Failed to disable auto-discovery').setType(success ? CardService.NotificationType.SUCCESS : CardService.NotificationType.ERROR)).build();
+  if (success) {
+    setProperty(constants_CONFIG.PROPERTIES.AUTO_REPLY_ENABLED, 'false');
+  }
+  return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().updateCard(createHomeCard())).setNotification(CardService.newNotification().setText(success ? 'Email discovery and auto-replies disabled' : 'Failed to disable email discovery').setType(success ? CardService.NotificationType.SUCCESS : CardService.NotificationType.ERROR)).build();
 };
 const toggleAutoReply = () => {
   try {
@@ -1895,7 +1946,7 @@ const toggleAutoReply = () => {
     }
     const currentValue = settings_getProperty(constants_CONFIG.PROPERTIES.AUTO_REPLY_ENABLED) === 'true';
     setProperty(constants_CONFIG.PROPERTIES.AUTO_REPLY_ENABLED, (!currentValue).toString());
-    return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().updateCard(createHomeCard())).setNotification(CardService.newNotification().setText(!currentValue ? 'Auto-reply enabled - Will send automatic responses to emails' : 'Auto-reply disabled - No automatic responses will be sent').setType(CardService.NotificationType.INFO)).build();
+    return CardService.newActionResponseBuilder().setNavigation(CardService.newNavigation().updateCard(createHomeCard())).setNotification(CardService.newNotification().setText(!currentValue ? 'Smart replies enabled - AI will handle email responses' : 'Smart replies disabled - No automatic responses will be sent').setType(CardService.NotificationType.INFO)).build();
   } catch (error) {
     logger_logError('Toggle Auto-Reply Error', error);
     return createErrorCard(error.message);

@@ -7,7 +7,10 @@ import { checkJiraSetup } from '../integrations/jira';
 
 export const createIntegrationSettingsCard = () => {
   const card = CardService.newCardBuilder();
-  card.setHeader(createHeader('Integration Settings', null, false));
+  card.setHeader(CardService.newCardHeader()
+    .setTitle('MailFlow Settings')
+    .setImageStyle(CardService.ImageStyle.SQUARE)
+    .setImageUrl(CONFIG.UI.ICONS.SETTINGS));
 
   // Create sections for each integration
   Object.entries(CONFIG.INTEGRATIONS).forEach(([key, integration]) => {

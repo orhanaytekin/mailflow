@@ -26,7 +26,7 @@ export const createHomeCard = () => {
   const isAutoReplyEnabled = getProperty(CONFIG.PROPERTIES.AUTO_REPLY_ENABLED) === 'true';
 
   // Add header
-  card.setHeader(createHeader('Gmail Task Automation', 'Automate your email workflows', false));
+  card.setHeader(createHeader('MailFlow AI', 'Automate your email workflows', false));
 
   // Add settings button in its own section
   const settingsSection = createHeaderSection(true);
@@ -36,7 +36,7 @@ export const createHomeCard = () => {
 
   // Add auto-discovery section
   const discoverySection = CardService.newCardSection()
-    .setHeader('🔄 Auto-Discovery')
+    .setHeader('🔍 Email Discovery')
     .addWidget(CardService.newTextParagraph()
       .setText('Automatically process new emails based on filters.'));
 
@@ -69,9 +69,9 @@ export const createHomeCard = () => {
           return 'Auto-reply requires Auto-Discovery to be enabled first. Enable Auto-Discovery to use automatic email responses.';
         }
         if (isAutoReplyEnabled) {
-          return 'Auto-reply is enabled - Sending automatic responses to emails';
+          return 'Smart replies enabled - Automatic responses active';
         }
-        return 'Auto-reply is disabled - No automatic responses will be sent';
+        return 'Smart replies disabled - No automatic responses';
       })()))
     .addWidget(CardService.newTextButton()
       .setText(isAutoReplyEnabled ? 'Disable Auto-Reply' : 'Enable Auto-Reply')
