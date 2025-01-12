@@ -1,7 +1,7 @@
 /**
- * Emailman
+ * MailFlow AI
  * 
- * https://github.com/orhanaytekin/emailman
+ * https://github.com/orhanaytekin/mailflow
  */
 
 const path = require('path');

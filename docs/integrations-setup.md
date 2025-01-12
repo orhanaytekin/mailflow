@@ -1,6 +1,6 @@
 # Integration Setup Guide
 
-This guide explains how to set up each integration for the Gmail Task Automation add-on.
+This guide explains how to set up each integration for MailFlow AI.
 
 ## Table of Contents
 
@@ -23,7 +23,7 @@ This guide explains how to set up each integration for the Gmail Task Automation
 1. Create a Notion Integration:
    - Go to [Notion Integrations](https://www.notion.so/my-integrations)
    - Click "New integration"
-   - Name: "Gmail Task Automation"
+   - Name: "MailFlow AI"
    - Select workspace
    - Copy the "Internal Integration Token"
 
@@ -82,7 +82,7 @@ Required Database Properties (Not updated. Check the code for the exact names):
 1. Go to [Atlassian Account Settings](https://id.atlassian.com/manage-profile/security)
 2. Under Security, click "Create and manage API tokens"
 3. Click "Create API token"
-4. Name it "Gmail Task Automation"
+4. Name it "MailFlow AI"
 5. Copy the token
 6. Get your Jira information:
    - Domain: Your Jira domain (e.g. `your-domain.atlassian.net`) - do not include https://
@@ -153,7 +153,7 @@ Note: Instead of custom fields, all metadata is included in the formatted descri
 1. Go to [Slack API Apps](https://api.slack.com/apps)
 2. Click "Create New App"
    - Choose "From scratch"
-   - Name: "Gmail Task Automation"
+   - Name: "MailFlow AI"
    - Select workspace
 3. Under "Features":
    - Click "Incoming Webhooks"

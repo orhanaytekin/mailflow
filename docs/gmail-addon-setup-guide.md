@@ -12,7 +12,7 @@
 
 1. Go to [script.google.com](https://script.google.com)
 2. Click "+ New project"
-3. Name your project (e.g., "Gmail Task Automation")
+3. Name your project (e.g., "MailFlow AI")
 
 ### Method 2: From Google Drive
 
@@ -35,14 +35,14 @@
 }]
 },
 "gmail": {
-"name": "Gmail Task Automation",
+"name": "MailFlow AI",
 "logoUrl": "https://your-logo-url.png",
 "contextualTriggers": [{
 "unconditional": {},
 "onTriggerFunction": "handleGmailTrigger"
 }],
-"primaryColor": "#4285f4",
-"secondaryColor": "#ea4335",
+"primaryColor": "#1e8e3e",
+"secondaryColor": "#d93025",
 "version": "LATEST_VERSION",
 "openLinkUrlPrefixes": [
 "https://notion.so/",

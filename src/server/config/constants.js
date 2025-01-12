@@ -1,14 +1,14 @@
 export const CONFIG = {
   APP: {
-    NAME: 'Gmail Task Automation',
+    NAME: 'MailFlow AI',
     VERSION: '1.0.0',
-    DESCRIPTION: 'Automate task creation from Gmail emails',
+    DESCRIPTION: 'AI-powered email workflow automation',
   },
 
   LABELS: {
-    DISCOVERY: 'Auto-Discovery',
-    PROCESSED: 'Processed by Automation',
-    SKIPPED: 'Skipped by Automation',
+    DISCOVERY: 'MailFlow: Auto-Discovery',
+    PROCESSED: 'MailFlow: Processed',
+    SKIPPED: 'MailFlow: Skipped',
   },
 
   WORKFLOWS: {

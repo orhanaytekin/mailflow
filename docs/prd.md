@@ -1,8 +1,8 @@
-# Gmail Task Automation Project Requirements
+# MailFlow AI Project Requirements
 
 ## 🎯 Project Overview
 
-Create a Gmail add-on using Google Apps Script that analyzes incoming emails and automatically creates tasks in Notion/Jira with appropriate alerts.
+Create an AI-powered Gmail add-on that intelligently processes emails, automates responses, and streamlines task management across platforms.
 
 ## 🔑 Access & Authentication Requirements
 

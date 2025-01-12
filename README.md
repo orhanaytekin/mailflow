@@ -1,10 +1,10 @@
-# Gmail Task Automation Add-on
+# MailFlow AI
 
-A Gmail Add-on that automatically creates tasks in Notion/Jira from emails with Slack notifications.
+An intelligent Gmail Add-on that streamlines email workflows with AI-powered task automation and smart responses.
 
 ## Features
 
-- Create tasks from emails in Notion or Jira
+- AI-powered email analysis and routing
 - Intelligent email content analysis
 - Automatic priority detection
 - Due date extraction
@@ -12,6 +12,7 @@ A Gmail Add-on that automatically creates tasks in Notion/Jira from emails with 
 - Slack notifications
 - Recent tasks view
 - Email labeling
+- Smart auto-replies
 
 ## Prerequisites
 
@@ -27,8 +28,8 @@ A Gmail Add-on that automatically creates tasks in Notion/Jira from emails with 
 1.Clone the repository:
 
 ```bash
-git clone https://github.com/orhanaytekin/emailman.git
-cd emailman
+git clone git@github.com:orhanaytekin/mailflow.git
+cd mailflow
 ```
 
 2.Install dependencies:
@@ -132,7 +133,7 @@ npm test
 
 ## Support
 
-For issues and feature requests, please use the [issue tracker](https://github.com/orhanaytekin/emailman/issues).
+For issues and feature requests, please use the [issue tracker](https://github.com/orhanaytekin/mailflow/issues).
 
 ## License
 
