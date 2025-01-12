@@ -3,7 +3,7 @@
   "version": "12.3.0",
   "description": "Setup a local development environment for Google Apps Script with Visual Studio Code",
   "author": "Orhan Aytekin",
-  "homepage": "https://digitalinspiration.com/",
+  "homepage": "https://orhanaytekin.me/",
   "license": "",
   "scripts": {
     "watch": "webpack --watch",

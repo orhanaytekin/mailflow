@@ -20,21 +20,53 @@ This guide explains how to set up each integration for the Gmail Task Automation
 
 ## Notion Integration
 
-1. Go to [Notion Integrations](https://www.notion.so/my-integrations)
-2. Click "New Integration"
-3. Fill in:
+1. Create a Notion Integration:
+   - Go to [Notion Integrations](https://www.notion.so/my-integrations)
+   - Click "New integration"
    - Name: "Gmail Task Automation"
    - Select workspace
-4. Click "Submit"
-5. Copy the "Internal Integration Token"
-6. Create a new database in Notion or use an existing one
-7. Share the database with your integration
-8. Copy the database ID from the URL:
-   - URL format: `https://notion.so/workspace/{DATABASE_ID}?v=...`
-9. In the add-on settings:
-   - Paste the Integration Token in "API Key"
+   - Copy the "Internal Integration Token"
+
+2. Create a Notion Database:
+   - Create a new page in Notion
+   - Type `/database` and select "Table - Full page"
+   - Add the following properties:
+     - Title (default)
+     - Status (Select)
+       - Options: New, In Progress, Done
+     - Priority (Select)
+       - Options: High, Medium, Low
+     - Category (Multi-select)
+       - Options: Support, Bug, Feature, Question
+     - Source (Select)
+       - Options: Email, Manual
+     - Email ID (Text)
+     - Thread ID (Text)
+     - Technical Details (Text)
+     - Created Date (Date)
+
+3. Share Database with Integration:
+   - Open the database
+   - Click "Share" in top right
+   - Click "Invite"
+   - Find and select your integration
+   - Click "Invite"
+
+4. Get Database ID:
+   - Open the database in full page view
+   - Copy the ID from URL:
+
+     ```bash
+     https://notion.so/workspace/{DATABASE_ID}?v=...
+     ```
+
+   - ID is the 32-character string
+
+5. In the add-on settings:
+   - Paste the Integration Token
    - Paste the Database ID
    - Click "Save Notion Settings"
+   - Click "Test Connection"
 
 Required Database Properties (Not updated. Check the code for the exact names):
 
@@ -145,10 +177,6 @@ After setting up each integration:
    - Notion: New page created
    - Jira: New issue created
    - Slack: Notification received
-
-## Troubleshooting
-
-Common issues and solutions:
 
 ### OpenAI
 

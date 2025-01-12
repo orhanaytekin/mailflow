@@ -82,6 +82,29 @@ console.log('Gmail trigger activated');
 3. Click "Add"
 4. Click "OK"
 
+### Required OAuth Scopes
+
+Make sure the following scopes are included in your manifest:
+
+```json
+{
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/gmail.addons.execute",
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/gmail.labels",
+    "https://www.googleapis.com/auth/script.external_request"
+  ]
+}
+```
+
+These scopes are required for:
+
+- Reading email content
+- Sending auto-replies
+- Managing labels
+- Making API calls to external services
+
 ### 2. Enable Advanced Gmail Service
 
 1. Click "Services" (+ icon)

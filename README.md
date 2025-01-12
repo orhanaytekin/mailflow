@@ -24,59 +24,61 @@ A Gmail Add-on that automatically creates tasks in Notion/Jira from emails with 
 
 ## Setup
 
-1. Clone the repository:
+1.Clone the repository:
 
 ```bash
 git clone https://github.com/orhanaytekin/emailman.git
 cd emailman
 ```
 
-2. Install dependencies:
+2.Install dependencies:
 
 ```bash
 npm install
 ```
 
-3. Login to Google Apps Script:
+3.Login to Google Apps Script:
 
 ```bash
 npx clasp login
 ```
 
-4. Create a new Google Apps Script project:
+4.Create a new Google Apps Script project:
 
 ```bash
 npx clasp create --type webapp
 ```
 
-5. Enable the Gmail API in Google Cloud Console:
-   - Go to [Google Cloud Console](https://console.cloud.google.com)
-   - Enable Gmail API
-   - Configure OAuth consent screen
-   - Create credentials (OAuth 2.0 Client ID)
+5.Enable the Gmail API in Google Cloud Console:
 
-6. Configure external service integrations:
-   - Get Notion API key and database ID
-   - Set up Jira API token and project
-   - Create Slack webhook
+- Go to [Google Cloud Console](https://console.cloud.google.com)
+- Enable Gmail API
+- Configure OAuth consent screen
+- Create credentials (OAuth 2.0 Client ID)
+
+6.Configure external service integrations:
+
+- Get Notion API key and database ID
+- Set up Jira API token and project
+- Create Slack webhook
 
 ## Development
 
-1. Start development server:
+1.Start development server:
 
 ```bash
 npm run watch
 ```
 
-2. Make changes to files in `src/` directory
+2.Make changes to files in `src/` directory
 
-3. Build the project:
+3.Build the project:
 
 ```bash
 npm run build
 ```
 
-4. Deploy to Google Apps Script:
+4.Deploy to Google Apps Script:
 
 ```bash
 npm run deploy
@@ -93,6 +95,10 @@ After deployment, configure the add-on:
    - Notion API Token & Database ID
    - Jira API Token, Email, URL & Project Key
    - Slack Webhook URL
+5. Configure Auto-Discovery and Auto-Reply:
+   - Enable Auto-Discovery to process incoming emails
+   - Enable Auto-Reply for automated responses
+   - Set up Gmail filters for Auto-Discovery
 
 ## Usage
 

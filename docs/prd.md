@@ -104,6 +104,7 @@ Create a Gmail add-on using Google Apps Script that analyzes incoming emails and
 4. Basic Slack alerts
 5. Settings management
 6. Error handling and user feedback
+7. Auto-reply system with customizable templates
 
 ## 🔄 Future Enhancements (Phase 2)
 
@@ -112,6 +113,7 @@ Create a Gmail add-on using Google Apps Script that analyzes incoming emails and
 3. Custom automation rules
 4. Enhanced UI with more options
 5. Additional integration options
+6. Advanced auto-reply rules and conditions
 
 ## ⚙️ Technical Architecture
 
