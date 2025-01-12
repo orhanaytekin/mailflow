@@ -47,10 +47,9 @@ This guide explains how to set up each integration for MailFlow AI.
 
 3. Share Database with Integration:
    - Open the database
-   - Click "Share" in top right
-   - Click "Invite"
+   - Click "..." in top right
+   - Click "Add connection"
    - Find and select your integration
-   - Click "Invite"
 
 4. Get Database ID:
    - Open the database in full page view
@@ -76,6 +75,8 @@ Required Database Properties (Not updated. Check the code for the exact names):
 - Category (type: select)
 - Email ID (type: text)
 - Thread ID (type: text)
+- Created Date (type: date)
+- Source (type: select)
 
 ## Jira Integration
 
@@ -88,14 +89,19 @@ Required Database Properties (Not updated. Check the code for the exact names):
    - Domain: Your Jira domain (e.g. `your-domain.atlassian.net`) - do not include https://
    - Email: Your Atlassian account email
    - Project Key: Found in project settings (e.g. `PROJ`)
+7. Required Jira Permissions:
+   - Browse Projects
+   - Create Issues
+   - Edit Issues
+   - Add Comments
 
-7. Verify Jira Project Setup:
+8. Verify Jira Project Setup:
    - Go to Project Settings > Issue Types
    - Ensure "Task" issue type exists
    - Verify Priority field has options: High, Medium, Low
    - Add custom fields if needed (see Custom Fields Setup below)
 
-8. In the add-on settings:
+9. In the add-on settings:
    - Fill in Domain (without https://)
    - Fill in Email
    - Fill in API Token
@@ -115,12 +121,6 @@ Note: When entering the domain, only enter the domain part (e.g. `your-domain.at
    - Go to Project Settings > Fields
    - Click on the field
    - Note the ID from the URL (e.g., customfield_10000)
-4. Update the code if needed:
-
-   ```javascript
-   customfield_10000: metadata.emailId,  // Update ID
-   customfield_10001: metadata.threadId, // Update ID
-   ```
 
 ### Troubleshooting
 
