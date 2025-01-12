@@ -125,3 +125,17 @@ Create an AI-powered Gmail add-on that intelligently processes emails, automates
   - Notion API
   - Jira API
   - Slack Webhooks
+
+## Technical Limitations
+
+- 6 Minutes Trigger Execution Time
+- 30 Concurrent Triggers
+- Add on triggers can only be set up once per hour
+- Learn more: [Google Apps Script Quotas](https://developers.google.com/apps-script/guides/services/quotas#current_limitations)
+
+## Follow the project
+
+- [GitHub Repository](https://github.com/orhanaytekin/mailflow)
+- [Product Requirements Document](https://github.com/orhanaytekin/mailflow/docs/prd.md)
+- [Setup Guide](https://github.com/orhanaytekin/mailflow/docs/gmail-addon-setup-guide.md)
+- [Integration Guide](https://github.com/orhanaytekin/mailflow/docs/integrations-setup.md)

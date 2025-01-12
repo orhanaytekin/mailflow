@@ -135,6 +135,13 @@ npm test
 
 For issues and feature requests, please use the [issue tracker](https://github.com/orhanaytekin/mailflow/issues).
 
+##  Follow the project
+
+- [GitHub Repository](https://github.com/orhanaytekin/mailflow)
+- [Product Requirements Document](https://github.com/orhanaytekin/mailflow/blob/main/docs/prd.md)
+- [Setup Guide](https://github.com/orhanaytekin/mailflow/blob/main/docs/gmail-addon-setup-guide.md)
+- [Integration Guide](https://github.com/orhanaytekin/mailflow/blob/main/docs/integrations-setup.md)
+
 ## License
 
 This project is licensed under the terms specified in the package.json file.

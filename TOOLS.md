@@ -1,12 +1,14 @@
-## :star2: Tools
+# Welcome to MailFlow AI
+
+## Tools
 
 The Google Apps Script Starter kit uses these tools under the hood.
 
-#### VSCode Extension
+## VSCode Extension
 
 All the required extensions are available through the [Google Apps Script Extensions Pack](https://marketplace.visualstudio.com/items?itemName=labnol.google-apps-script) for VSCode.
 
-#### Babel
+### Babel
 
 Write code using ES6 features like arrow functions, destructuring, classes, template literals, and the Babel transpiler will transform your ECMAScript 2015/2017 code to ES5 that Apps Script can understand.
 
@@ -29,7 +31,3 @@ This incredibly powerful source code editor from Microsoft provides an integrate
 #### Prettier
 
 A code formatter that will beautify your JavaScript, JSON, HTML and CSS stylesheets according to a set of rules and styles widely accepted by programmers.
-
-#### Airbnb
-
-Developers have their own unique style of writing code. [Airbnb's JavaScript style guide](https://github.com/airbnb/javascript/blob/master/README.md#airbnb-javascript-style-guide-) outlines how JavaScript code should be written and adheres to the rules.
