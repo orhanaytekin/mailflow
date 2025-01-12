@@ -5,6 +5,7 @@
 ### 1. Main Navigation Flow
 
 From homepage:
+
 1. Quick Actions
    - Go to Workflows
    - Analyze Email
@@ -17,6 +18,7 @@ From homepage:
 ### 2. Workflow Selection Flow
 
 When "Go to Workflows" is clicked:
+
 1. Show available workflows:
    - Customer Support
    - Bug Reports

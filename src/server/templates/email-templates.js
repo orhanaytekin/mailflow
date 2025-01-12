@@ -9,6 +9,8 @@ export const EMAIL_TEMPLATES = {
       2. Device Type and Model
       3. Operating System Version
       4. User ID or Support Code
+
+      And any other relevant information you think might help us.
       
       This information will help us investigate and resolve your issue more efficiently.
       
@@ -24,6 +26,7 @@ export const EMAIL_TEMPLATES = {
         <li>Operating System Version</li>
         <li>User ID or Support Code</li>
       </ul>
+      <p>And any other relevant information you think might help us.</p>
       <p>This information will help us investigate and resolve your issue more efficiently.</p>
       <p>Best regards,<br>MailFlow AI</p>
     `,
@@ -34,8 +37,10 @@ export const EMAIL_TEMPLATES = {
       
       We have received your request and our team is looking into it.
       
-      We appreciate the detailed information you've provided and will work on addressing 
+      We appreciate the information you've provided and will work on addressing 
       your request as quickly as possible. You'll receive updates as we make progress.
+
+      Please note that we may need to follow up with you for more information, so please keep an eye on your email for any follow-up requests.
       
       Best regards,
       MailFlow AI
@@ -49,6 +54,9 @@ export const EMAIL_TEMPLATES = {
         <p>We appreciate the detailed information you've provided and will work on addressing 
         your request as quickly as possible. You'll receive updates as we make progress.</p>
         
+        <p>Please note that we may need to follow up with you for more information,
+        so please keep an eye on your email for any follow-up requests.</p>
+
         <p>Best regards,<br>
         <strong>MailFlow AI</strong></p>
       </div>
